@@ -3,11 +3,12 @@
         IMPLICIT NONE
 
         real g_sum, g_avg, g_tmp
-        integer g_count, in_count
+        integer g_count
         character(len=8) g_verdict
         character(len=16) student_name
 
         logical in_valid
+        integer in_count
 
 c ? Is the carriage return really needed (does T1 negate in completely?)
 c '/' adds \n, 
@@ -15,6 +16,7 @@ c '/' adds \n,
 101     format(' ', /, T2, "##", 4X, "GRADE")
 102     format(' ', T1, "Name    = ", A, /,
      &                  "Grades  = ", I2, /,
+     &                  "Sum     = ", F7.2, /,
      &                  "Average = ", F5.2, //,
      &                  "VERDICT: ", A)
 
@@ -73,7 +75,7 @@ c211     format(F5.2)   Using * instead (handles grade inputs without '.')
         
         write(*, 100) "---- Results ----"
         
-        write(*, 102) student_name, g_count, g_avg, g_verdict
+        write(*, 102) student_name, g_count, g_sum, g_avg, g_verdict
 
         write(*, 100) "...... End ......"
 

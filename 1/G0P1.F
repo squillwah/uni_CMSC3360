@@ -10,55 +10,63 @@
         logical in_valid
         integer in_count
 
+c Holds read error status from read(). This overrides crashing with incompatible io types. 
+c Values > 0 mean bad io. See p662.
+        integer ios
+
 c ? Is the carriage return really needed (does T1 negate in completely?)
 c '/' adds \n, 
-100     format(' ', /, T5, A, /)
-101     format(' ', /, T2, "##", 4X, "GRADE")
-102     format(' ', T1, "Name    = ", A, /,
-     &                  "Grades  = ", I2, /,
-     &                  "Sum     = ", F7.2, /,
-     &                  "Average = ", F5.2, //,
-     &                  "VERDICT: ", A)
+100     FORMAT (' ', /, T5, A, /)
+101     FORMAT (' ', /, T2, "##", 4X, "GRADE")
+102     FORMAT (' ', T1, "Name    = ", A, /,
+     &                   "Grades  = ", I2, /,
+     &                   "Sum     = ", F7.2, /,
+     &                   "Average = ", F5.2, //,
+     &                   "VERDICT: ", A)
 
-c '$' supresses auto \n (in gfortran) (alternatively use advance='no' in write)
-200     format(' ', T1, A, $)
-201     format(A16)
-202     format(I2)
+c '$' in format is also an option to supress auto \n (in gfortran).
+200     FORMAT (' ', T1, A)
+c201     FORMAT (A16)
+c202     FORMAT (I2)
 
-210     format(' ', T2,  I2,  4X, "", $)
+210     FORMAT (' ', T2,  I2,  4X, "")
 c211     format(F5.2)   Using * instead (handles grade inputs without '.')
 
-        write(*, 100) "==== Average ===="
+        WRITE (*, 100) "==== Average ===="
         
-        write(*, 200) "Enter your student's name: "
-        read(*, 201) student_name
-        
-        in_valid = .FALSE. 
-        do while (.NOT. in_valid)
-            write(*, 200) "Enter the count of grades: "
-            read(*, 202) g_count
-            in_valid = (g_count .GE. 1 .AND. g_count .LE. 99) 
-            if (.NOT. in_valid) write(*, *) 
-     &      "! Grade count must be in range 1 -> 99"
-        end do
+        WRITE (*, 200, advance="no") "Enter your student's name: "
+        READ (*, *) student_name
 
-        write(*, 101)
-        do in_count = 0, g_count-1
+        in_valid = .FALSE. 
+        DO WHILE (.NOT. in_valid)
+            WRITE (*, 200, advance="no") "Enter the count of grades: "
+            READ (*, *, iostat=ios) g_count
+
+            in_valid = 
+     & (g_count .GE. 1 .AND. g_count .LE. 99 .AND. ios .EQ. 0)
+            IF (.NOT. in_valid) WRITE(*, *) 
+     & "! Grade count must be an integer in range 1 -> 99"
+        END DO
+
+        WRITE(*, 101)
+        DO in_count = 0, g_count-1
             in_valid = .FALSE. 
-            do while (.NOT. in_valid)
-                write(*, 210) in_count+1 
-                read(*, *) g_tmp
-                in_valid = (g_tmp .GE. 0 .AND. g_tmp .LE. 100)
-                if (.NOT. in_valid) write(*, *) 
-     &          "! Grades values must be in range 0.0 -> 100.0"
-            end do
+            DO WHILE (.NOT. in_valid)
+                WRITE (*, 210, advance="no") in_count+1 
+                READ (*, *, iostat=ios) g_tmp
+
+                in_valid = 
+     & (g_tmp .GE. 0 .AND. g_tmp .LE. 100 .AND. ios .EQ. 0)
+                IF (.NOT. in_valid) write(*, *) 
+     & "! Grades values must a real number be in range 0.0 -> 100.0"
+            END DO
             
             g_sum = g_sum + g_tmp
-        end do
+        END DO
 
         g_avg = g_sum / g_count
         
-        select case(nint(g_avg))
+        SELECT CASE (nint(g_avg))
             CASE (:59) 
                 g_verdict = "failure"
             CASE (60:69) 
@@ -71,13 +79,13 @@ c211     format(F5.2)   Using * instead (handles grade inputs without '.')
                 g_verdict = "A"
             CASE DEFAULT
                 g_verdict = "magic"
-        end select
+        END SELECT
         
-        write(*, 100) "---- Results ----"
-        
-        write(*, 102) student_name, g_count, g_sum, g_avg, g_verdict
+        WRITE (*, 100) "---- Results ----"
 
-        write(*, 100) "...... End ......"
+        WRITE (*, 102) student_name, g_count, g_sum, g_avg, g_verdict
+
+        WRITE (*, 100) "...... End ......"
 
       STOP
       END PROGRAM average

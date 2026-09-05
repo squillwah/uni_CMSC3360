@@ -77,6 +77,7 @@ c211     format(F5.2)   Using * instead (handles grade inputs without '.')
 
         write(*, 100) "...... End ......"
 
+      STOP
       END PROGRAM average
                 
         

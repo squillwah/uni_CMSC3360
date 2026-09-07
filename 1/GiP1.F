@@ -1,3 +1,11 @@
+****************************************
+* Program 1: Average
+* Group #i
+*
+*  Cody Baker 
+*  Mikiya Dixon
+*  Ravi Dressler
+****************************************
 
       PROGRAM average
       IMPLICIT NONE

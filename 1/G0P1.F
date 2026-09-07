@@ -2,15 +2,25 @@
       PROGRAM average
       IMPLICIT NONE
 
-      character(len=8) g_verdict
       character(len=16) student_name
+      character(len=8) g_verdict
       real g_sum, g_avg, g_tmp
       integer g_count
-* 'ios' is for holding READ iostat values. Values > 0 mean bad input. See p662.
-* Storing the iostatus lets the program move on from an incompatible type read.
+* 'ios' is for READ iostat values. ios > 0 mean bad input. See p662.
+* Capturing iostat overrides halting on bad input / type, allows handling.
       integer ios
       integer in_count
       logical in_valid
+
+      student_name="Default Dan"
+      g_verdict=''
+      g_sum = 0
+      g_avg = 0
+      g_tmp = 0
+      g_count = 0
+      ios = 0
+      in_count = 0
+      in_valid = .FALSE.
 
 C FORMATS
 

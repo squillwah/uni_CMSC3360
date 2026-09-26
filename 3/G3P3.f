@@ -23,11 +23,11 @@
       RETURN
       END SUBROUTINE
 
-      SUBROUTINE read_matrices(matrices, count, cols, rows)
+      SUBROUTINE read_matrices(matrices, cols, rows, count)
         IMPLICIT NONE
         integer :: i, c, r
         integer, intent(IN) :: cols, rows, count
-        integer, intent(OUT) :: matrices(cols, rows, count)
+        real, intent(OUT) :: matrices(cols, rows, count)
 
 *        matrices = reshape([(i, i = 1, 800)], [count, cols, rows])
 
@@ -43,19 +43,23 @@
 
 
       PROGRAM THREE
+        IMPLICIT NONE
+        integer :: i
     
 *        integer, parameter :: ASPECT = 3
 *        integer, dimension(ASPECT) :: tensor_shape
 *        real, dimension
 
         integer, parameter :: MAX_COL = 10, MAX_ROW = 10, MAX_MAT = 10
-        integer :: matrices(MAX_COL*MAX_ROW*MAX_MAT), cols, rows, count
+        integer ::  cols, rows, count
+        real :: matrices(MAX_COL*MAX_ROW*MAX_MAT)
+        
 
 *        call mstuff (m, mshape)
 
         matrices = 0
-        count = 8
-        cols = 10
+        count = 10
+        cols = 11
         rows = 10 
 
         matrices = [(i, i = 1, count*cols*rows)]
@@ -66,7 +70,7 @@
 
 *        call mstuff(matrices, cols, rows)
 
-        call read_matrices(matrices, count, rows, cols)
+        call read_matrices(matrices, cols, rows, count)
 
       STOP
       END PROGRAM

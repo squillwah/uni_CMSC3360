@@ -1,39 +1,78 @@
-
-      PROGRAM Average2
+****************************************
+* Program 2: Average Array
+* Group 3
+*
+*  Cody Baker 
+*  Mikiya Dixon
+*  Ravi Dressler
+****************************************
+      PROGRAM AVERAGEARRAY
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: GRADE_LIMIT = 10, NAME_LIMIT = 32
-      
-      character(len=NAME_LIMIT) :: student_name
-      character(len=8) :: grade_verdict
-      
-      real, dimension(max_grades) :: grades
-      real :: grade_tmp, grade_avg
-        
-      integer i, ios
-      logical escape
+* Variable Declarations and Initializations       
+      INTEGER, PARAMETER :: MAX_GRADES = 10
+      CHARACTER(len=20) :: Name
+      REAL :: grades(MAX_GRADES) , SUM , AVERAGE , grade
+      INTEGER :: gradeCount ,iterator
 
-      student_name = "Standard Stanley"
-      grade_verdict = ''
-      grades = 0
-      grade_avg = 0
+      grades = 0.0
+      SUM = 0.0
+      AVERAGE = 0.0
+      gradeCount = 0
+      grade = 0.0
 
-* Output / headers
-100   FORMAT (' ', /, T5, A, /)
-101   FORMAT (' ', /, T2, "##", 4X, "GRADE")
-102   FORMAT (' ', T1, "Name    = ", A, /,
-     &                 "Grades  = ", I2, /,
-     &                 "Sum     = ", F7.2, /,
-     &                 "Average = ", F5.2, //,
-     &                 "VERDICT: ", A)
+* Prompts user for name and grades
+      WRITE(*,'(A)',ADVANCE='NO') "Name: "
+      READ(*,'(A)') Name
 
-* Name prompt + input format
-200   FORMAT (' ', T1, A)
-201   FORMAT (A)
+      WRITE(*,'(A)')"Enter up to 10 grades in range of 0 - 100"
+      WRITE(*,'(A)')"Enter any other value to stop"
 
-* Grade prompt
-210   FORMAT (' ', T2,  I2,  4X, "")
+* Continue reading grades until maximum number of grades is reached
+* or user enters value outside of range
+      DO WHILE (grade .GE. 0 
+     & .AND. grade .LE. 100 
+     & .AND. gradeCount .LT. MAX_GRADES)
 
-      i = 1
-      DO WHILE ( i .LE. GRADE_LIMIT .AND. .NOT. escape)
           
+          
+          READ * , grade
+
+* Only adds grade if it is within range
+          IF(grade .GE. 0 .AND. grade .LE. 100) THEN
+            gradeCount = gradeCount + 1
+            grades(gradeCount) = grade
+          END IF
+
+      END DO
+
+* Calculates SUM and AVERAGE
+      DO iterator = 1, gradeCount
+        SUM = SUM + grades(iterator)
+      END DO
+
+      IF(gradeCount .GT. 0) THEN
+          AVERAGE = SUM / gradeCount
+      END IF
+
+* Begin output
+      WRITE(*,100) Name, SUM
+
+      WRITE(*,'(A)')"GRADES: "
+      DO iterator = 1,gradeCount
+        WRITE(*,200) grades(iterator)
+      END DO
+
+      WRITE(*,300) AVERAGE
+
+* Output formatting
+  100 FORMAT(/,"Name:",4X, A,/,"SUM:",4X, F7.2)
+
+  200 FORMAT(8X,F7.2)
+
+  300 FORMAT("AVERAGE:",X,F7.2)
+
+      STOP
+      END PROGRAM AVERAGEARRAY
+
+

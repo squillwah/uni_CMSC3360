@@ -17,15 +17,55 @@
 
 * vars in module will cause trouble
 
-      MODULE file_io
+      MODULE IMPLICIT_SOME
         IMPLICIT NONE
-        INTEGER, PARAMETER :: MAX_FILENAME=255
-        INTEGER :: i, c, r
-        LOGICAL :: tf
-        INTEGER :: ios
-        CHARACTER(len=256) :: iom
-        CHARACTER(len=MAX_FILENAME) :: filename
+        INTEGER i, c, r
+        INTEGER ios
+        LOGICAL tf
+        CHARACTER(len=256) iom
+      END MODULE
 
+      MODULE files
+        IMPLICIT NONE 
+
+        INTEGER, PARAMETER :: MAX_FILENAME=255
+        CHARACTER(len=2), PARAMETER :: FORBIDDEN_FILES(2) = ('.', '..')
+      
+      CONTAINS 
+
+* Subroutines flag file existence in 'tf' & store io errors in ios / iom.
+        SUBROUTINE prompt_infile (unit, prompt)
+          IMPLICIT NONE 
+          
+          INTEGER, INTENT(OUT) :: unit
+          CHARACTER(len=*), INTENT(IN) :: prompt
+
+          CHARACTER(len=MAX_FILENAME) filename
+
+          filename = ''
+
+100       FORMAT (' ', T1, A)
+200       FORMAT (A)
+          WRITE (*, 100, advance='no') prompt
+          READ (*, 200, iostat=ios, iomsg=iom) filename
+
+* check that name is not . or ..
+
+          
+      END MODULE
+
+      MODULE matrices 
+        IMPLICIT NONE
+
+        INTEGER, PARAMETER :: MAX_COLS=10, MAX_ROWS=10, MAX_MATS=10
+        
+* Flat memory space for matrices. 
+* Dimensionality unknown until runtime. Read into 'aspect'.
+* Subroutines interpret 'matrices' tensor shape using 'aspect'.
+        REAL :: matrices(MAX_COLS*MAX_ROWS*MAX_MATS)
+        REAL :: sum_matrix(MAX_COLS*MAX_ROWS)
+        INTEGER :: aspect(3)
+        
         CONTAINS
 
         SUBROUTINE prompt_fopen (prompt, unit, asout)
@@ -50,11 +90,6 @@
 
 
       RECURSIVE SUBROUTINE prompt_filename (filename, prompt)
-        IMPLICIT NONE
-
-        INTEGER :: ios
-        CHARACTER(len=*), INTENT(IN) :: prompt
-        CHARACTER(len=*), INTENT(OUT) :: filename
 
 1000    FORMAT (' ', A)
 1001    FORMAT (A)
@@ -71,10 +106,13 @@
 
       SUBROUTINE read_matrices (matrices, aspect)
         IMPLICIT NONE
-        INTEGER :: i, c, r
-
+        USE IMPLICIT_SOME
+        USE matrices
+        USE files
+        
         INTEGER, INTENT(IN) :: aspect(3)
         REAL, INTENT(OUT) :: matrices(aspect(COLS), aspect(ROWS), aspect(MATS))
+
 
         DO i = 1, aspect(MATS) 
           DO r = 1, aspect(ROWS)
@@ -99,12 +137,6 @@
 *        INTEGER, PARAMETER :: MAX_FILENAME=255
         INTEGER, PARAMETER :: MAX_COLS=10, MAX_ROWS=10, MAX_MATS=10
 
-* Flat memory space for matrices. 
-* Dimensionality unknown until runtime. Read into 'aspect'.
-* Subroutines interpret 'matrices' tensor shape using 'aspect'.
-        REAL :: matrices(MAX_COLS*MAX_ROWS*MAX_MATS)
-        REAL :: sum_matrix(MAX_COLS*MAX_ROWS)
-        INTEGER :: aspect(3)
 
         character(len=MAX_FILENAME) infile, outfile
 

@@ -69,9 +69,15 @@
           CHARACTER(len=256), INTENT(OUT) :: iom
 
           INTEGER, INTENT(OUT) :: aspect(3)
-          
+
           READ (unit, *, iostat=ios, iomsg=iom) 
      &    aspect(MAT), aspect(ROW), aspect(COL)
+
+*   Restrict dimensions to max parameters.
+          aspect(COL) = clamp(aspect(COL), 1, MAX_COLS)
+          aspect(ROW) = clamp(aspect(ROW), 1, MAX_ROWS)
+          aspect(MAT) = clamp(aspect(MAT), 1, MAX_MATS)
+          
         END SUBROUTINE
 
         SUBROUTINE read_matrices (matrices, aspect, unit, ios, iom)
@@ -130,6 +136,12 @@
 *   Sum across depth.
           sum_matrix = sum(matrices, dim=3)
         END SUBROUTINE
+
+        INTEGER FUNCTION clamp(val, mi, ma)
+          INTEGER, INTENT(IN) :: val
+          INTEGER, INTENT(IN) :: mi, ma
+          clamp = min(max(val, mi), ma)
+        END FUNCTION
       END MODULE
 
 * *

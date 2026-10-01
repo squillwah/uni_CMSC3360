@@ -18,8 +18,8 @@
           f_forbidden = any(FORBIDDEN_FILES .EQ. trim(filename))
         END SUBROUTINE f_flags
 
-* True returned for filenames corresponding 'valid' files (validity dependent on
-* i or o). Sets flags to reflect the state of the file.
+* True returned for filenames pointing to 'valid' files (validity is 
+* different for i vs o). Three flags also signal the state of the file.
         LOGICAL FUNCTION valid_ifile(filename)
           IMPLICIT NONE
           CHARACTER(len=*), INTENT(IN) :: filename
@@ -38,97 +38,6 @@
         END FUNCTION valid_ofile
       END MODULE file_check
 
-* * Prompting for filenames / prompt loops for valid filenames.
-*       MODULE file_prompt
-*         USE files
-* 
-*         IMPLICIT NONE
-*         INTEGER, PARAMETER :: MAX_INPUT_LENGTH = MAX_FILENAME_LENGTH
-*         
-* * Signals a quit choice.
-*         LOGICAL :: abort
-* 
-*         CONTAINS
-* 
-* * Bad to use assumed length for OUT string here?
-*         SUBROUTINE prompt_str (prompt, str) 
-*           IMPLICIT NONE 
-*           CHARACTER(len=*), INTENT(IN) :: prompt
-*           CHARACTER(len=MAX_INPUT_LENGTH), INTENT(OUT) :: str
-* 100       FORMAT (' ', T1, A)
-* 200       FORMAT (A)
-*           
-*           str = ''
-*           WRITE (*, 100, advance='no') prompt
-*           READ (*, 200, iostat=ios, iomsg=iom) str
-*           str = trim(str)
-*         END SUBROUTINE prompt_str
-* 
-*         CHARACTER FUNCTION prompt (msg) 
-*           IMPLICIT NONE 
-*           CHARACTER(len=*), INTENT(IN) :: msg
-* 100       FORMAT (' ', T1, A)
-* 200       FORMAT (A)
-*           WRITE (*, 100, advance='no') msg
-*           READ (*, 200) prompt
-*         END FUNCTION
-* 
-*         SUBROUTINE prompt_ifile(fn)
-*           IMPLICIT NONE
-*           CHARACTER(len=MAX_INPUT_LENGTH), INTENT(OUT) :: fn
-* 
-* 10        FORMAT (' ', T1, "ERR: File '", A, "' doesn't exist!")
-* 20        FORMAT ("ERR: File '", A, "' is forbidden!")
-* 30        FORMAT ("ERR: File '", A, "' is already open!")
-* 
-*           CALL prompt_str("Enter the input file: ", fn)
-*           
-*           DO WHILE (.NOT. (valid_ifile(fn) .OR. abort))
-*             IF (f_forbidden) THEN
-*               WRITE (*, 20) trim(fn)
-*               CALL prompt_str("Enter a different input file: ", fn)
-*             ELSE IF (.NOT. f_exists) THEN 
-*               WRITE (*, 10) trim(fn)
-*               CALL prompt_str("Enter another filename or " //
-*      &                        "type 'QUIT' to quit: ", fn)
-*               abort = trim(fn) .EQ. "QUIT"
-*             ELSE IF (f_isopen) THEN
-*               WRITE (*, 30) trim(fn)
-*               CALL prompt_str("Enter a different input file: ", fn)
-*             END IF
-*           END DO
-*         END SUBROUTINE
-*         
-*         SUBROUTINE prompt_ofile(fn)
-*           IMPLICIT NONE
-*           CHARACTER(len=*), INTENT(OUT) :: fn
-*           LOGICAL :: overwrite
-* 
-*           overwrite = .FALSE.
-* 
-* 11        FORMAT (' ', T1, "WARN: File '", A, "' exists...")
-* 20        FORMAT ("ERR: File '", A, "' is forbidden!")
-* 30        FORMAT ("ERR: File '", A, "' is already open!")
-* 
-*           CALL prompt_str("Enter the output file: ", fn)
-*           
-*           DO WHILE (.NOT. (valid_ofile(fn, overwrite) .OR. abort))
-*             IF (f_forbidden) THEN
-*               WRITE (*, 20) trim(fn)
-*               CALL prompt_str("Enter a different output file: ", fn)
-*             ELSE IF (f_exists) THEN 
-*               WRITE (*, 11) trim(fn)
-*               CALL prompt_str("Enter OVERWRITE to overwrite, QUIT " //
-*      &                        "to quit, or a different filename: ", fn)
-*               abort = trim(fn) .EQ. "QUIT"
-*               overwrite = trim(fn) .EQ. "OVERWRITE"
-*             ELSE IF (f_isopen) THEN
-*               WRITE (*, 30) trim(fn)
-*               CALL prompt_str("Enter a different output file: ", fn)
-*             END IF
-*           END DO
-*         END SUBROUTINE
-*       END MODULE prompts
 
 * Shorthand for shape array access.
 #define COL 1
@@ -169,9 +78,7 @@
 
       PROGRAM main
         USE file_check
-*        USE file_prompter
-*        USE matrix_module
-
+        
         IMPLICIT NONE
         INTEGER, PARAMETER :: INPUT_LENGTH = MAX_FILENAME_LENGTH
 
@@ -261,8 +168,19 @@
           END IF
 * 8 Open input file.
         CASE (8)
-          print *, "read i"
-          state = 4
+          OPEN (file=input, newunit=ifile_unit, action="read", 
+     &          status="old", iostat=ios, iomsg=iom)
+          IF (ios .NE. 0) THEN
+            WRITE (*, *) "Error opening file: '"//trim(iom)//"'", ios
+            IF (prompt_retry("Try another file?")) THEN
+              state = 1
+            ELSE 
+              state = 0
+            END IF
+          ELSE
+            WRITE (*, *) "Input file opened successfully."
+            state = 4
+          END IF
 * 9 Open output file.
         CASE (9)
           print *, "read o"
@@ -278,18 +196,30 @@
         END SELECT
         END DO
 
-
         CONTAINS 
 
-        CHARACTER(len=INPUT_LENGTH) FUNCTION prompt (msg) 
+        CHARACTER(len=INPUT_LENGTH) FUNCTION prompt(msg) 
           IMPLICIT NONE 
           CHARACTER(len=*), INTENT(IN) :: msg
-*          CHARACTER(len=INPUT_LENGTH), INTENT(OUT) :: prompt
 100       FORMAT (' ', T1, A)
 200       FORMAT (A)
           WRITE (*, 100, advance='no') msg
           READ (*, 200) prompt
         END FUNCTION
+
+        LOGICAL FUNCTION prompt_retry(msg)
+          IMPLICIT NONE
+          CHARACTER(len=*), INTENT(IN) :: msg
+          CHARACTER :: retry
+          
+          retry = trim(prompt((msg//" (y/n): ")))
+          DO WHILE (.NOT. any(retry .EQ. ["Y", "y", "N", "n"]))
+            retry = trim(prompt("Y or N: "))
+          END DO
+
+          prompt_retry = any(retry .EQ. ["Y", "y"])
+        END FUNCTION
+            
           
               
 *        CALL prompt_ifile(input)

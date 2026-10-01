@@ -1,3 +1,11 @@
+****************************************
+* Program 2: Matrix Add
+* Group 3
+*
+*  Cody Baker 
+*  Mikiya Dixon
+*  Ravi Dressler
+****************************************
 
 * Shorthand for shape array access.
 #define COL 1
@@ -77,7 +85,7 @@
           
           INTEGER :: c, r, m
 
-* Elements are space delimited, list directed input should work fine.
+*   Elements are space delimited, list directed input should work fine.
           READ (unit, *, iostat=ios, iomsg=iom) (((matrices(c, r, m), 
      & c = 1, aspect(COL)), r = 1, aspect(ROW)), m = 1, aspect(MAT))
         END SUBROUTINE
@@ -159,6 +167,7 @@
         running = .TRUE.
         DO WHILE (running)
         SELECT CASE (state)
+
 * 0 Close program.
         CASE (0)
           WRITE (*, *) "Goodbye!"

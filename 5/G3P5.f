@@ -189,33 +189,19 @@
 *     &  "(F10.4, '|=', "//YCOLUMNS//"A)"
 *        CHARACTER(len=*) :: FORMAT_XLINE_SPACE =
 *     &  "(15('.'), '|=', "//YCOLUMNS//"A)"
-
-* 63 (YCOLUMNS) and 3 (YLABELS) needs to be recalculated if columns change.
-        CHARACTER(len=*), PARAMETER :: FORMAT_YLINE_LABEL = 
-     &  "('Y>', "// "3" //"(F10.4, '|'))"
-        CHARACTER(len=*), PARAMETER :: FORMAT_YLINE_SPACE =
-     &  "('vX', "// "3" //"(' - - - - - - - ='))"
-        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_LABEL =
-     &  "(F10.4, '|=', "// "63" //"A)"
-        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_SPACE =
-     &  "(15('.'), '|=', "// "63" //"A)"
-
         
         INTEGER, PARAMETER :: MIN_XLINES=20, MAX_XLINES=200
         INTEGER :: xlines, xlabels
       
         REAL :: ranges(2, 2)
         REAL :: dxy(2)
-* Point step is the delta per row or line step, dx and dy.
-        REAL :: point_step(2)
-*        REAL :: label_step(2)
         
         REAL, DIMENSION(:,:), POINTER :: points
         INTEGER :: points_n
 
 * 1. Store count at each point quantum, 2. render symbols to line, 3. print.
         INTEGER :: p_density(YCOLUMNS)
-        CHARACTER :: p_density_symbols(4) = [' ', '*', '+', '#']
+        CHARACTER :: p_symbols(4) = [' ', '*', '+', '#']
         CHARACTER :: g_line(YCOLUMNS)
 
         CONTAINS
@@ -227,34 +213,16 @@
           INTEGER :: i
           REAL :: dxtmp
 
-* have step dx dy
-* ycolsep = 16
-* Y>1234567890.1234|1234567890.1234|
-* vX - - - - - - - = - - - - - - - =
-* 1234567890.1234|=0123456789abcdef    0 + 15 dy steps between labels
-* ...............|-1
-* ...............|-2
-* ...............|-3
-* ...............|-4
-* ...............|-5    0 + 5 dx steps between labels
-* 1234567890.1234|=
+* Y>12345.1234|12345.1234|
+* vX----------=----------=
+* 12345.1234|=0123456789a 0 + 10 dy steps between labels
+* ..........|-1
+* ..........|-2
+* ..........|-3
+* ..........|-4
+* ..........|-5    0 + 5 dx steps between labels
+* 12345.1234|=
 
-* Between this (x+dx*line) and (x*dx+line+1),
-* how many y are between (y+dy*col) and (y+dy*col+1)?
-
-* Store into p_density, for every col on line.
-* Render g_line symbols according to p_density.
-* Write graph line to screen.
-
-*          DO line = 0, xlines-1
-*            IF (mod((line), FORMAT_XLINE_LABEL) .EQ. 0) THEN
-*              WRITE (*, FORMAT_XLINE_LABEL)
-*     &        points(X, 1) + line*dxy(X), g_line
-*            ELSE
-*              WRITE (*, FORMAT_XLINE_SPACE) g_line
-*            END IF
-*          END DO
-            
           points => ps
           points_n = ps_n
 
@@ -284,20 +252,6 @@
 * Change in Y per column (column count is known and constant). 
 * The -1 is needed, otherwise largest point is missed, for some reason.
           dxy(Y) = (ranges(Y, 2) - ranges(Y, 1)) / (YCOLUMNS-1)
-                
-          
-*          step(X) = 0
-*          IF (dx .GT. 0) THEN 
-*            step(X) = dx
-*            xvalues = (ranges(X, 2) - ranges(X, 1)) / dx + 1
-*            IF (xvalues < MIN_VALUES) THEN
-*              xvalues = MIN_VALUES
-*              step(X) = (ranges(X, 2) - ranges(X, 1)) / (MIN_VALUES-1)
-*            END IF
-*          END IF
-*          label_step(Y) = (ranges(Y, 2) - ranges(Y, 1)) / YLABELS
-*          label_step(X) = (ranges(X, 2) - ranges(X, 1)) / xlabels 
-
         END SUBROUTINE
         
         SUBROUTINE graph_write_info(unit)
@@ -305,31 +259,28 @@
           INTEGER, INTENT(IN) :: unit
           INTEGER :: i
 
-*          WRITE (*, '(3(X,X,X,X, A6, F10.4))') 
           WRITE (*, *)
      & "XMIN: ", ranges(X,1) ,"XMAX: ", ranges(X,2) ,"dx: ", dxy(X),
      & "xvalues: ", xlines 
           WRITE (*, *) 
      & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"dy: ", dxy(Y),
      & "yvalues: ", YCOLUMNS
-
-*          PRINT *, [(points(X,1)+dxy(X)*i, i=0, xlines-1)]
         END SUBROUTINE
 
         SUBROUTINE graph_write_plot(unit)
           IMPLICIT NONE
           INTEGER, INTENT(IN) :: unit
           CHARACTER(len=64) :: fmt
-          INTEGER :: i
+          INTEGER :: i, line, col
+          REAL :: bounds(2)
 
-          print *, YLABELS, YLABEL_COL_WIDTH, YCOLUMNS
-* Y label header.
+* Y label header
+* + line below, with dots going past final label.
           WRITE (fmt, '(A, I4, A)') 
      &    "('Y>', ", YLABELS, "(F10.4, '|'))"
           WRITE (*, fmt) 
      &    [(points(Y,1)+dxy(Y)*(YLABEL_COL_WIDTH)*i, i=0, YLABELS-1)]
 
-* Line below, with dots going past final label.
           WRITE (fmt, '(A, I4, A)') 
      &    "('vX', ", YLABELS, "(10('-'), '='))"
           WRITE (*, fmt, advance='no') 
@@ -341,40 +292,84 @@
             WRITE (*, '("")')
           END IF
 
-          g_line = 'x'
-* X lines 
+* X lines
+
+* Each line is a bound, x+dx*line -> x+dx*(line+1).
+* Search through X, plot points into p_density when in bounds, end when out.
+
           WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
 
-          DO i = 1, xlines
-            WRITE (*, fmt) 10.0, g_line
+* Because X is sorted, 'i' can persist between lines.
+          i = 1
+          DO line = 0, xlines-1
+            p_density = 1
+            bounds = [(points(X,1) + dxy(X)*line), 
+     &                (points(X,1) + dxy(X)*(line+1))]
+C           print *, bounds
+*   Start of lower
+C             print *,  points(X,i) .LT. bounds(1)
+            DO WHILE (i .LE. points_n .AND. points(X,i) .LT. bounds(1))
+              i = i + 1
+C              print *,  points(X,i) .LT. bounds(1)
+            END DO
+C             print *, i, points(X, i)
+C             cycle
+*   End of upper
+            DO WHILE (i .LE. points_n .AND. points(X,i) .LT. bounds(2))
+*       Column position is just the amount of dy in X's Y:
+              col = INT(points(Y,i) / dxy(Y))
+C           print *, col
+              p_density(col) = p_density(col) + 1
+              print *, "ROW", line, "COL", col, "VAL", points(X,i),"I",i
+*              print *, pdensity(col)
+              i = i + 1
+            END DO
+C             print *, i, points(X, i)
+*   Render line 
+            DO i = 1, YCOLUMNS
+              g_line(i) = p_symbols(min(p_density(i), size(p_symbols)))
+            END DO
+            WRITE (*, fmt) line*1.0, g_line
           END DO
+* Handle final line:
 
-
-*          WRITE (*, '(A)', advance='no') 
-*     &    [('.', i = 1, YCOLUMNS-(YLABELS*YLABEL_COL_WIDTH))]
-
-*          print *, YLABELS, YCOLUMNS
-*          WRITE (fmt, '("(''vX'',",I4,"(10(''.''),''=''))")') YLABELS
-* Fill in extra dots cut off by YLABEL rounding
-*          DO i = 1, YCOLUMNS-(YLABELS*YLABEL_COL_WIDTH)
-*            WRITE (*, '(A)', advance='no') '.'
-*          END DO
-*          WRITE (*,*) ''
-
-*          WRITE (fmt, '(A, I4, A, I4, A)') 
-*     &    "('Y>', ", YLABELS, "(F10.4, '|'), ",
-*     &    YCOLUMNS-(YLABELS*YLABEL_COL_WIDTH), "('.'))"
           
-*          CHARACTER(len=64) :: FORMAT_YLINE_LABEL = 
-*        CHARACTER(len=*), PARAMETER :: FORMAT_YLINE_SPACE =
-*     &  "('vX', "// "3" //"(' - - - - - - - ='))"
-*        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_LABEL =
-*     &  "(F10.4, '|=', "// "63" //"A)"
-*        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_SPACE =
-*     &  "(15('.'), '|=', "// "63" //"A)"
-*          WRITE (*, FORMAT_YLINE_LABEL) 
-*     &    [(points(Y,1)+dxy(Y)*i, i=0, YLABELS)]
-*          WRITE (*, FORMAT_YLINE_SPACE)
+
+* Store into p_density, for every col on line.
+* Render g_line symbols according to p_density.
+* Write graph line to screen.
+
+* Between this (x+dx*line) and (x*dx+line+1),
+* how many y are between (y+dy*col) and (y+dy*col+1)?
+
+* X is sorted, find subset bound between
+
+*            bounds(2) = [0, 0]
+*            i = 1
+*            DO WHILE (i.LE.points_n .AND. points(i).LT.xi+dxy(X)*line) 
+*              IF i .eq.
+*  
+*            
+*            xi = points(X,1)
+*  
+*            IF points(X,i) .GE.
+*  
+*            p_density = 0 
+*            DO line = 0, xlines-1
+*  * Find bounds of X values inside this line
+*              
+*              DO i = 1, n_points
+*                IF points(X, i) .GE. 
+*  
+*            g_line = 'x'
+* X lines 
+*          WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
+*
+*          DO i = 1, xlines
+*            WRITE (*, fmt) 10.0, g_line
+*          END DO
+
+
         END SUBROUTINE
 *
       END MODULE

@@ -170,14 +170,15 @@
       MODULE grapher 
         INTEGER, PARAMETER :: X=1, Y=2
 
-* Format 10.4, 15 columns + 1 sep
-        INTEGER, PARAMETER :: YLABEL_COL_WIDTH=15
-        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=15, XLABEL_LINE_SPACE=5
+* Format 10.4, 10 columns + 1 y sep '|' and 2 x sep '-='
+        INTEGER, PARAMETER :: YLABEL_COL_WIDTH=11
+        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=12, XLABEL_LINE_SPACE=5
         INTEGER, PARAMETER :: COLUMNS=80
 
-* -2 and +1 accounts for xlabel alignment and '|' ylabel seperators
-        INTEGER, PARAMETER :: YCOLUMNS=(COLUMNS - XLABEL_COL_WIDTH - 2)
-        INTEGER, PARAMETER :: YLABELS=(YCOLUMNS / (YLABEL_COL_WIDTH+1))
+* Rounded down. 
+        INTEGER, PARAMETER :: YCOLUMNS=(COLUMNS - XLABEL_COL_WIDTH)
+* Labels start left of their place, so full columns are used. -2 for Y>
+        INTEGER, PARAMETER :: YLABELS=((COLUMNS-2) / YLABEL_COL_WIDTH)
 
 * It would be great to use the preprocessor for this.
 *        CHARACTER(len=*) :: FORMAT_YLINE_LABEL = 
@@ -260,9 +261,6 @@
           ranges(X,:) = [minval(points(X,:)), maxval(points(X,:))]
           ranges(Y,:) = [minval(points(Y,:)), maxval(points(Y,:))]
 
-
-* Change in Y per column (column count is known and constant) 
-          dxy(Y) = (ranges(Y, 2) - ranges(Y, 1)) / YCOLUMNS
 * Change in X per line (line count derived from x values and min/max bounds).
           dxy(X) = ranges(X, 2) - ranges(X, 1)
           DO i = 2, points_n
@@ -282,6 +280,10 @@
               dxy(X) = (ranges(X, 2) - ranges(X, 1)) / (MAX_XLINES-1)
             END IF
           END IF
+          
+* Change in Y per column (column count is known and constant). 
+* The -1 is needed, otherwise largest point is missed, for some reason.
+          dxy(Y) = (ranges(Y, 2) - ranges(Y, 1)) / (YCOLUMNS-1)
                 
           
 *          step(X) = 0
@@ -301,21 +303,79 @@
         SUBROUTINE graph_write_info(unit)
           IMPLICIT NONE
           INTEGER, INTENT(IN) :: unit
-          INTEGER i
+          INTEGER :: i
 
 *          WRITE (*, '(3(X,X,X,X, A6, F10.4))') 
-          WRITE (*, *) 
-     & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"dy: ", dxy(Y),
-     & "yvalues: ", YCOLUMNS
           WRITE (*, *)
      & "XMIN: ", ranges(X,1) ,"XMAX: ", ranges(X,2) ,"dx: ", dxy(X),
      & "xvalues: ", xlines 
+          WRITE (*, *) 
+     & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"dy: ", dxy(Y),
+     & "yvalues: ", YCOLUMNS
 
 *          PRINT *, [(points(X,1)+dxy(X)*i, i=0, xlines-1)]
         END SUBROUTINE
 
-*        SUBROUTINE graph_write_graph(unit)
-*        END SUBROUTINE
+        SUBROUTINE graph_write_plot(unit)
+          IMPLICIT NONE
+          INTEGER, INTENT(IN) :: unit
+          CHARACTER(len=64) :: fmt
+          INTEGER :: i
+
+          print *, YLABELS, YLABEL_COL_WIDTH, YCOLUMNS
+* Y label header.
+          WRITE (fmt, '(A, I4, A)') 
+     &    "('Y>', ", YLABELS, "(F10.4, '|'))"
+          WRITE (*, fmt) 
+     &    [(points(Y,1)+dxy(Y)*(YLABEL_COL_WIDTH)*i, i=0, YLABELS-1)]
+
+* Line below, with dots going past final label.
+          WRITE (fmt, '(A, I4, A)') 
+     &    "('vX', ", YLABELS, "(10('-'), '='))"
+          WRITE (*, fmt, advance='no') 
+          i = COLUMNS-2-(YLABELS*YLABEL_COL_WIDTH)
+          if (i .GT. 0) THEN
+            WRITE (fmt, '(A, I4, A)') "(", i, "('.'))"
+            WRITE (*, fmt)
+          ELSE
+            WRITE (*, '("")')
+          END IF
+
+          g_line = 'x'
+* X lines 
+          WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
+
+          DO i = 1, xlines
+            WRITE (*, fmt) 10.0, g_line
+          END DO
+
+
+*          WRITE (*, '(A)', advance='no') 
+*     &    [('.', i = 1, YCOLUMNS-(YLABELS*YLABEL_COL_WIDTH))]
+
+*          print *, YLABELS, YCOLUMNS
+*          WRITE (fmt, '("(''vX'',",I4,"(10(''.''),''=''))")') YLABELS
+* Fill in extra dots cut off by YLABEL rounding
+*          DO i = 1, YCOLUMNS-(YLABELS*YLABEL_COL_WIDTH)
+*            WRITE (*, '(A)', advance='no') '.'
+*          END DO
+*          WRITE (*,*) ''
+
+*          WRITE (fmt, '(A, I4, A, I4, A)') 
+*     &    "('Y>', ", YLABELS, "(F10.4, '|'), ",
+*     &    YCOLUMNS-(YLABELS*YLABEL_COL_WIDTH), "('.'))"
+          
+*          CHARACTER(len=64) :: FORMAT_YLINE_LABEL = 
+*        CHARACTER(len=*), PARAMETER :: FORMAT_YLINE_SPACE =
+*     &  "('vX', "// "3" //"(' - - - - - - - ='))"
+*        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_LABEL =
+*     &  "(F10.4, '|=', "// "63" //"A)"
+*        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_SPACE =
+*     &  "(15('.'), '|=', "// "63" //"A)"
+*          WRITE (*, FORMAT_YLINE_LABEL) 
+*     &    [(points(Y,1)+dxy(Y)*i, i=0, YLABELS)]
+*          WRITE (*, FORMAT_YLINE_SPACE)
+        END SUBROUTINE
 *
       END MODULE
 
@@ -373,6 +433,7 @@
 
         CALL graph_set_points (ps, ps_n)
         CALL graph_write_info (1)
+        CALL graph_write_plot (1)
         
         
 *        IF (.NOT. bust) THEN

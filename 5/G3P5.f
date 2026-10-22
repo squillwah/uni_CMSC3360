@@ -167,18 +167,80 @@
         END SUBROUTINE
       END MODULE
 
-*      MODULE grapher 
-*
-*        SUBROUTINE graph_set_points(points, points_n)
-*        END SUBROUTINE
-*        
-*        SUBROUTINE graph_write_info(unit)
-*        END SUBROUTINE
-*
+      MODULE grapher 
+        INTEGER, PARAMETER :: X=1, Y=2
+
+
+* Format 10.4, 15 columns + 1 sep
+        INTEGER, PARAMETER :: YLABEL_COL_WIDTH=16
+        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=16, XLABEL_ROW_SPACE=4
+        INTEGER, PARAMETER :: MIN_VALUES=20, MAX_VALUES=200
+        INTEGER, PARAMETER :: COLUMNS=80
+
+        INTEGER, PARAMETER :: YLABELS =
+     &  (COLUMNS - XLABEL_COL_WIDTH) / YLABEL_COL_WIDTH
+
+        REAL, DIMENSION(:,:), POINTER :: points
+        INTEGER :: points_n
+        REAL :: ranges(2, 2)
+        REAL :: step(2)
+        INTEGER :: xvalues
+        REAL :: dx
+
+        CONTAINS
+
+        SUBROUTINE graph_set_points(ps, ps_n)
+          IMPLICIT NONE
+          INTEGER, INTENT(IN) :: ps_n
+          REAL, TARGET, INTENT(IN) :: ps(2, ps_n)
+          INTEGER :: i
+          REAL :: dxtmp
+
+          points => ps
+          points_n = ps_n
+
+          ranges(X,:) = [minval(points(X,:)), maxval(points(X,:))]
+          ranges(Y,:) = [minval(points(Y,:)), maxval(points(Y,:))]
+
+          step(Y) = (ranges(Y, 2) - ranges(Y, 1)) / YLABELS
+          
+          dx = ranges(X, 2) - ranges(X, 1)
+          DO i = 2, points_n
+            dxtmp = points(X, i) - points(X, i-1)
+            IF (dxtmp .NE. 0 .AND. dxtmp .LT. dx) dx = dxtmp
+          END DO
+
+          step(X) = 0
+          IF (dx .GT. 0) THEN 
+            step(X) = dx
+            xvalues = (ranges(X, 2) - ranges(X, 1)) / dx + 1
+            IF (xvalues < MIN_VALUES) THEN
+              xvalues = MIN_VALUES
+              step(X) = (ranges(X, 2) - ranges(X, 1)) / (MIN_VALUES-1)
+            END IF
+          END IF
+
+        END SUBROUTINE
+        
+        SUBROUTINE graph_write_info(unit)
+          IMPLICIT NONE
+          INTEGER, INTENT(IN) :: unit
+          INTEGER i
+
+*          WRITE (*, '(3(X,X,X,X, A6, F10.4))') 
+          WRITE (*, *) 
+     & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"YSTEP: ", step(Y)
+          WRITE (*, *)
+     & "XMIN: ", ranges(X,1) ,"XMAX: ", ranges(X,2) ,"dx: ", step(X),
+     & "xvalues: ", xvalues 
+
+          PRINT *, [(points(X,1)+step(X)*i, i=0, xvalues-1)]
+        END SUBROUTINE
+
 *        SUBROUTINE graph_write_graph(unit)
 *        END SUBROUTINE
 *
-*      END MODULE
+      END MODULE
 
       PROGRAM main
 * const MAX_POINTS, Y_COL_LENGTH, X_ROW_RANGE
@@ -201,11 +263,11 @@
 *
         USE fileprompts
         USE pointstuff
+        USE grapher
         IMPLICIT NONE
 
-        INTEGER :: points_n
-        REAL, DIMENSION(POINT_SIZE, MAX_POINTS) :: points
-        REAL, DIMENSION(2, POINT_SIZE) :: ranges
+        INTEGER :: ps_n
+        REAL, DIMENSION(POINT_SIZE, MAX_POINTS), TARGET :: ps
         
         INTEGER :: u1, u2
         INTEGER :: p
@@ -215,18 +277,25 @@
         REAL :: y_step, x_step
 
         CALL ifileorbust (u1, bust)
-        CALL read_points (u1, points, points_n, bust)
+        CALL read_points (u1, ps, ps_n, bust)
         CLOSE (u1)
-        DO p = 1, points_n 
-          WRITE (*, *) points(:,p)
+        DO p = 1, ps_n 
+          WRITE (*, *) ps(:,p)
         END DO
+        
+        CALL sort_points (ps, ps_n, 1)
 
         print *, ""
 
-        CALL sort_points (points, points_n, X)
-        DO p = 1, points_n 
-          WRITE (*, *) points(:,p)
+*        CALL sort_points (ps, ps_n, X)
+        DO p = 1, ps_n 
+          WRITE (*, *) ps(:,p)
         END DO
+        
+        print *, ""
+
+        CALL graph_set_points (ps, ps_n)
+        CALL graph_write_info (1)
         
         
 *        IF (.NOT. bust) THEN

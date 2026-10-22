@@ -299,9 +299,9 @@
 
           WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
 
-* Because X is sorted, 'i' can persist between lines.
-          i = 1
+* Because X is sorted, 'i' can persist between lines. No it cant.
           DO line = 0, xlines-1
+            i = 1
             p_density = 1
             bounds = [(points(X,1) + dxy(X)*line), 
      &                (points(X,1) + dxy(X)*(line+1))]
@@ -316,8 +316,8 @@ C             print *, i, points(X, i)
 C             cycle
 *   End of upper
             DO WHILE (i .LE. points_n .AND. points(X,i) .LT. bounds(2))
-*       Column position is just the amount of dy in X's Y:
-              col = INT(points(Y,i) / dxy(Y))
+*       Column position is just the amount of dy in X's Y from the origin Y:
+              col = INT((points(Y,i)-points(Y,1)) / dxy(Y))+1
 C           print *, col
               p_density(col) = p_density(col) + 1
               print *, "ROW", line, "COL", col, "VAL", points(X,i),"I",i
@@ -329,7 +329,7 @@ C             print *, i, points(X, i)
             DO i = 1, YCOLUMNS
               g_line(i) = p_symbols(min(p_density(i), size(p_symbols)))
             END DO
-            WRITE (*, fmt) line*1.0, g_line
+            WRITE (*, fmt) bounds(1), g_line
           END DO
 * Handle final line:
 

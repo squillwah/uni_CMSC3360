@@ -170,22 +170,52 @@
       MODULE grapher 
         INTEGER, PARAMETER :: X=1, Y=2
 
-
 * Format 10.4, 15 columns + 1 sep
-        INTEGER, PARAMETER :: YLABEL_COL_WIDTH=16
-        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=16, XLABEL_ROW_SPACE=4
-        INTEGER, PARAMETER :: MIN_VALUES=20, MAX_VALUES=200
+        INTEGER, PARAMETER :: YLABEL_COL_WIDTH=15
+        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=15, XLABEL_LINE_SPACE=5
         INTEGER, PARAMETER :: COLUMNS=80
 
-        INTEGER, PARAMETER :: YLABELS =
-     &  (COLUMNS - XLABEL_COL_WIDTH) / YLABEL_COL_WIDTH
+* -2 and +1 accounts for xlabel alignment and '|' ylabel seperators
+        INTEGER, PARAMETER :: YCOLUMNS=(COLUMNS - XLABEL_COL_WIDTH - 2)
+        INTEGER, PARAMETER :: YLABELS=(YCOLUMNS / (YLABEL_COL_WIDTH+1))
 
+* It would be great to use the preprocessor for this.
+*        CHARACTER(len=*) :: FORMAT_YLINE_LABEL = 
+*     &  "('Y>', "//YLABELS//"(F10.4, '|'))"
+*        CHARACTER(len=*) :: FORMAT_YLINE_SPACE =
+*     &  "('vX', "//YLABELS//"(' - - - - - - - ='))"
+*        CHARACTER(len=*) :: FORMAT_XLINE_LABEL =
+*     &  "(F10.4, '|=', "//YCOLUMNS//"A)"
+*        CHARACTER(len=*) :: FORMAT_XLINE_SPACE =
+*     &  "(15('.'), '|=', "//YCOLUMNS//"A)"
+
+* 63 (YCOLUMNS) and 3 (YLABELS) needs to be recalculated if columns change.
+        CHARACTER(len=*), PARAMETER :: FORMAT_YLINE_LABEL = 
+     &  "('Y>', "// "3" //"(F10.4, '|'))"
+        CHARACTER(len=*), PARAMETER :: FORMAT_YLINE_SPACE =
+     &  "('vX', "// "3" //"(' - - - - - - - ='))"
+        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_LABEL =
+     &  "(F10.4, '|=', "// "63" //"A)"
+        CHARACTER(len=*), PARAMETER :: FORMAT_XLINE_SPACE =
+     &  "(15('.'), '|=', "// "63" //"A)"
+
+        
+        INTEGER, PARAMETER :: MIN_XLINES=20, MAX_XLINES=200
+        INTEGER :: xlines, xlabels
+      
+        REAL :: ranges(2, 2)
+        REAL :: dxy(2)
+* Point step is the delta per row or line step, dx and dy.
+        REAL :: point_step(2)
+*        REAL :: label_step(2)
+        
         REAL, DIMENSION(:,:), POINTER :: points
         INTEGER :: points_n
-        REAL :: ranges(2, 2)
-        REAL :: step(2)
-        INTEGER :: xvalues
-        REAL :: dx
+
+* 1. Store count at each point quantum, 2. render symbols to line, 3. print.
+        INTEGER :: p_density(YCOLUMNS)
+        CHARACTER :: p_density_symbols(4) = [' ', '*', '+', '#']
+        CHARACTER :: g_line(YCOLUMNS)
 
         CONTAINS
 
@@ -196,29 +226,75 @@
           INTEGER :: i
           REAL :: dxtmp
 
+* have step dx dy
+* ycolsep = 16
+* Y>1234567890.1234|1234567890.1234|
+* vX - - - - - - - = - - - - - - - =
+* 1234567890.1234|=0123456789abcdef    0 + 15 dy steps between labels
+* ...............|-1
+* ...............|-2
+* ...............|-3
+* ...............|-4
+* ...............|-5    0 + 5 dx steps between labels
+* 1234567890.1234|=
+
+* Between this (x+dx*line) and (x*dx+line+1),
+* how many y are between (y+dy*col) and (y+dy*col+1)?
+
+* Store into p_density, for every col on line.
+* Render g_line symbols according to p_density.
+* Write graph line to screen.
+
+*          DO line = 0, xlines-1
+*            IF (mod((line), FORMAT_XLINE_LABEL) .EQ. 0) THEN
+*              WRITE (*, FORMAT_XLINE_LABEL)
+*     &        points(X, 1) + line*dxy(X), g_line
+*            ELSE
+*              WRITE (*, FORMAT_XLINE_SPACE) g_line
+*            END IF
+*          END DO
+            
           points => ps
           points_n = ps_n
 
           ranges(X,:) = [minval(points(X,:)), maxval(points(X,:))]
           ranges(Y,:) = [minval(points(Y,:)), maxval(points(Y,:))]
 
-          step(Y) = (ranges(Y, 2) - ranges(Y, 1)) / YLABELS
-          
-          dx = ranges(X, 2) - ranges(X, 1)
+
+* Change in Y per column (column count is known and constant) 
+          dxy(Y) = (ranges(Y, 2) - ranges(Y, 1)) / YCOLUMNS
+* Change in X per line (line count derived from x values and min/max bounds).
+          dxy(X) = ranges(X, 2) - ranges(X, 1)
           DO i = 2, points_n
             dxtmp = points(X, i) - points(X, i-1)
-            IF (dxtmp .NE. 0 .AND. dxtmp .LT. dx) dx = dxtmp
+            IF (dxtmp .NE. 0 .AND. dxtmp .LT. dxy(X)) dxy(X) = dxtmp
           END DO
 
-          step(X) = 0
-          IF (dx .GT. 0) THEN 
-            step(X) = dx
-            xvalues = (ranges(X, 2) - ranges(X, 1)) / dx + 1
-            IF (xvalues < MIN_VALUES) THEN
-              xvalues = MIN_VALUES
-              step(X) = (ranges(X, 2) - ranges(X, 1)) / (MIN_VALUES-1)
+* Set xlines by dx. If outside MIN and MAX, constrain and adjust dx to fit.
+          xlines = MIN_XLINES
+          IF (dxy(X) .GT. 0) THEN 
+            xlines = (ranges(X, 2) - ranges(X, 1)) / dxy(X) + 1
+            IF (xlines < MIN_XLINES) THEN
+              xlines = MIN_XLINES
+              dxy(X) = (ranges(X, 2) - ranges(X, 1)) / (MIN_XLINES-1)
+            ELSE IF (xlines > MAX_XLINES) THEN
+              xlines = MAX_XLINES
+              dxy(X) = (ranges(X, 2) - ranges(X, 1)) / (MAX_XLINES-1)
             END IF
           END IF
+                
+          
+*          step(X) = 0
+*          IF (dx .GT. 0) THEN 
+*            step(X) = dx
+*            xvalues = (ranges(X, 2) - ranges(X, 1)) / dx + 1
+*            IF (xvalues < MIN_VALUES) THEN
+*              xvalues = MIN_VALUES
+*              step(X) = (ranges(X, 2) - ranges(X, 1)) / (MIN_VALUES-1)
+*            END IF
+*          END IF
+*          label_step(Y) = (ranges(Y, 2) - ranges(Y, 1)) / YLABELS
+*          label_step(X) = (ranges(X, 2) - ranges(X, 1)) / xlabels 
 
         END SUBROUTINE
         
@@ -229,12 +305,13 @@
 
 *          WRITE (*, '(3(X,X,X,X, A6, F10.4))') 
           WRITE (*, *) 
-     & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"YSTEP: ", step(Y)
+     & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"dy: ", dxy(Y),
+     & "yvalues: ", YCOLUMNS
           WRITE (*, *)
-     & "XMIN: ", ranges(X,1) ,"XMAX: ", ranges(X,2) ,"dx: ", step(X),
-     & "xvalues: ", xvalues 
+     & "XMIN: ", ranges(X,1) ,"XMAX: ", ranges(X,2) ,"dx: ", dxy(X),
+     & "xvalues: ", xlines 
 
-          PRINT *, [(points(X,1)+step(X)*i, i=0, xvalues-1)]
+*          PRINT *, [(points(X,1)+dxy(X)*i, i=0, xlines-1)]
         END SUBROUTINE
 
 *        SUBROUTINE graph_write_graph(unit)

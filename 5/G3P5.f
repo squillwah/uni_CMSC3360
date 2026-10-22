@@ -110,13 +110,27 @@
           INTEGER, INTENT(OUT) :: points_n
           LOGICAL, INTENT(OUT) :: fail
           REAL, INTENT(OUT) :: points(POINT_SIZE * MAX_POINTS)
-          INTEGER :: i
 
+* Check against:
+*  empty file EOF
+*  out of bounds point count
+*  premature point read EOF
           READ (unit, *, iostat=ios) points_n
-* Checking on size header. Change points_n or abort if unrecoverable.
-* Follow are formatted in pairs, flat read will store X, Y, X, Y contiguosly.
-          READ (unit, *, iostat=ios) points
-* Watch out for EOF. Count points anyways and fix points_n if mismatch.
+          IF (ios .NE. 0) THEN
+            WRITE (*, *) "Could not parse point count from file!"
+            FAIL = .TRUE.
+          ELSE IF (points_n .LT. 1 .OR. points_n .GT. MAX_POINTS) THEN
+            WRITE (*, '(A,"(",I3," -> ",I3,")")') 
+     &       "Point count header is out of bounds! ", 1, MAX_POINTS
+            FAIL = .TRUE.
+          ELSE
+            READ (unit, *, iostat=ios) points(1:POINT_SIZE*points_n)
+            IF (ios .NE. 0) THEN
+              WRITE (*, '(A, I3, A)') "Could not read all points!" // 
+     &         "Is your point count header (", points_n, ") accurate?"
+              FAIL = .TRUE.
+            END IF
+          END IF
         END SUBROUTINE
 
         SUBROUTINE write_points(unit, points, points_n)
@@ -134,7 +148,6 @@
         SUBROUTINE sort_points(points, points_n, by)
           IMPLICIT NONE
           INTEGER, INTENT(IN) :: points_n, by
-* Move POINT_SIZE sized blocks to preserve pairings.
           REAL, INTENT(INOUT) :: points(POINT_SIZE, points_n)
           INTEGER :: i, j
           REAL :: swap(POINT_SIZE)
@@ -143,7 +156,7 @@
 * https://arxiv.org/pdf/2110.01111
           DO i = 1, points_n
             DO j = 1, points_n
-*   Points stored in columns.
+*   Swap whole columns, (points stored as columns).
               IF (points(by, i) .LT. points(by, j)) THEN
                 swap = points(:,i)
                 points(:,i) = points(:,j)

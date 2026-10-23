@@ -172,7 +172,7 @@
 
 * Format 10.4, 10 columns + 1 y sep '|' and 2 x sep '-='
         INTEGER, PARAMETER :: YLABEL_COL_WIDTH=11
-        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=12, XLABEL_LINE_SPACE=5
+        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=12, XLABEL_LINE_SPACE=4
         INTEGER, PARAMETER :: COLUMNS=80
 
 * Rounded down. 
@@ -201,7 +201,7 @@
 
 * 1. Store count at each point quantum, 2. render symbols to line, 3. print.
         INTEGER :: p_density(YCOLUMNS)
-        CHARACTER :: p_symbols(4) = [' ', '*', '+', '#']
+        CHARACTER :: p_symbols(4) = ['.', '*', '+', '#']
         CHARACTER :: g_line(YCOLUMNS)
 
         CONTAINS
@@ -275,18 +275,18 @@
           REAL :: bounds(2)
 
 * Y label header
-* + line below, with dots going past final label.
+* + line below, with dashes going past final label.
           WRITE (fmt, '(A, I4, A)') 
      &    "('Y>', ", YLABELS, "(F10.4, '|'))"
           WRITE (*, fmt) 
-     &    [(points(Y,1)+dxy(Y)*(YLABEL_COL_WIDTH)*i, i=0, YLABELS-1)]
+     &    [(ranges(Y,1)+dxy(Y)*(YLABEL_COL_WIDTH)*i, i=0, YLABELS-1)]
 
           WRITE (fmt, '(A, I4, A)') 
      &    "('vX', ", YLABELS, "(10('-'), '='))"
           WRITE (*, fmt, advance='no') 
           i = COLUMNS-2-(YLABELS*YLABEL_COL_WIDTH)
           if (i .GT. 0) THEN
-            WRITE (fmt, '(A, I4, A)') "(", i, "('.'))"
+            WRITE (fmt, '(A, I4, A)') "(", i, "('-'))"
             WRITE (*, fmt)
           ELSE
             WRITE (*, '("")')
@@ -294,44 +294,43 @@
 
 * X lines
 
+
 * Each line is a bound, x+dx*line -> x+dx*(line+1).
-* Search through X, plot points into p_density when in bounds, end when out.
-
-          WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
-
-* Because X is sorted, 'i' can persist between lines. No it cant.
+* Search through X, plot points into p_density when in bounds, 
+* write line and move on when out.
+          i = 1
           DO line = 0, xlines-1
-            i = 1
             p_density = 1
             bounds = [(points(X,1) + dxy(X)*line), 
      &                (points(X,1) + dxy(X)*(line+1))]
-C           print *, bounds
+
 *   Start of lower
-C             print *,  points(X,i) .LT. bounds(1)
             DO WHILE (i .LE. points_n .AND. points(X,i) .LT. bounds(1))
               i = i + 1
-C              print *,  points(X,i) .LT. bounds(1)
             END DO
-C             print *, i, points(X, i)
-C             cycle
+
 *   End of upper
             DO WHILE (i .LE. points_n .AND. points(X,i) .LT. bounds(2))
-*       Column position is just the amount of dy in X's Y from the origin Y:
-              col = INT((points(Y,i)-points(Y,1)) / dxy(Y))+1
-C           print *, col
+*       Column position is just the amount of dy the origin Y (+1 cause FORTRAN):
+              col = INT((points(Y,i)-ranges(Y,1)) / dxy(Y))+1
               p_density(col) = p_density(col) + 1
-              print *, "ROW", line, "COL", col, "VAL", points(X,i),"I",i
-*              print *, pdensity(col)
+*              print *, "ROW", line, "COL", col, "VAL", points(X,i),"I",i
               i = i + 1
             END DO
-C             print *, i, points(X, i)
+
 *   Render line 
-            DO i = 1, YCOLUMNS
-              g_line(i) = p_symbols(min(p_density(i), size(p_symbols)))
+            DO col = 1, YCOLUMNS
+              g_line(col) = p_symbols(min(p_density(col), 
+     &                                    size(p_symbols)))
             END DO
-            WRITE (*, fmt) bounds(1), g_line
+            IF (mod(line, XLABEL_LINE_SPACE) .EQ. 0) THEN
+              WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
+              WRITE (*, fmt) bounds(1), g_line
+            ELSE 
+              WRITE (fmt, '(A, I4, A)') "(10X, '|=',", YCOLUMNS, "A)"
+              WRITE (*, fmt) g_line
+            END IF
           END DO
-* Handle final line:
 
           
 

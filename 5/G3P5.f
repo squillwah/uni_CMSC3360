@@ -54,7 +54,7 @@
             nofile = .FALSE.
           END DO
         ENDSUBROUTINE
-* todo: could pass functions in to reduce duplicated code 
+
         SUBROUTINE ofileorbust(unit, bust)
           IMPLICIT NONE
           INTEGER, INTENT(OUT) :: unit
@@ -66,7 +66,7 @@
           WRITE (*, '(A)', advance='no') "Enter output file: "
           READ (*, '(A)') fn
           DO WHILE (nofile .AND. .NOT. bust)
-*     Check existence, retry if non.
+
             INQUIRE (file=trim(fn), exist=exists)
             IF (exists) THEN
               WRITE (*, '(A)', advance='no') 
@@ -79,7 +79,7 @@
                 CYCLE
               END IF
             END IF
-*     Try to open, retry if errors
+
             OPEN (file=fn, newunit=unit, action="WRITE", 
      &          status="REPLACE", iostat=ios, iomsg=iom)
             IF (ios .NE. 0) THEN

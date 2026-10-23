@@ -172,7 +172,7 @@
 
 * Format 10.4, 10 columns + 1 y sep '|' and 2 x sep '-='
         INTEGER, PARAMETER :: YLABEL_COL_WIDTH=11
-        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=12, XLABEL_LINE_SPACE=4
+        INTEGER, PARAMETER :: XLABEL_COL_WIDTH=12, XLABEL_LINE_SPACE=5
         INTEGER, PARAMETER :: COLUMNS=80
 
 * Rounded down. 
@@ -180,16 +180,6 @@
 * Labels start left of their place, so full columns are used. -2 for Y>
         INTEGER, PARAMETER :: YLABELS=((COLUMNS-2) / YLABEL_COL_WIDTH)
 
-* It would be great to use the preprocessor for this.
-*        CHARACTER(len=*) :: FORMAT_YLINE_LABEL = 
-*     &  "('Y>', "//YLABELS//"(F10.4, '|'))"
-*        CHARACTER(len=*) :: FORMAT_YLINE_SPACE =
-*     &  "('vX', "//YLABELS//"(' - - - - - - - ='))"
-*        CHARACTER(len=*) :: FORMAT_XLINE_LABEL =
-*     &  "(F10.4, '|=', "//YCOLUMNS//"A)"
-*        CHARACTER(len=*) :: FORMAT_XLINE_SPACE =
-*     &  "(15('.'), '|=', "//YCOLUMNS//"A)"
-        
         INTEGER, PARAMETER :: MIN_XLINES=20, MAX_XLINES=200
         INTEGER :: xlines, xlabels
       
@@ -259,10 +249,10 @@
           INTEGER, INTENT(IN) :: unit
           INTEGER :: i
 
-          WRITE (*, *)
+          WRITE (unit, *)
      & "XMIN: ", ranges(X,1) ,"XMAX: ", ranges(X,2) ,"dx: ", dxy(X),
      & "xvalues: ", xlines 
-          WRITE (*, *) 
+          WRITE (unit, *) 
      & "YMIN: ", ranges(Y,1) ,"YMAX: ", ranges(Y,2) ,"dy: ", dxy(Y),
      & "yvalues: ", YCOLUMNS
         END SUBROUTINE
@@ -278,26 +268,26 @@
 * + line below, with dashes going past final label.
           WRITE (fmt, '(A, I4, A)') 
      &    "('Y>', ", YLABELS, "(F10.4, '|'))"
-          WRITE (*, fmt) 
+          WRITE (unit, fmt) 
      &    [(ranges(Y,1)+dxy(Y)*(YLABEL_COL_WIDTH)*i, i=0, YLABELS-1)]
 
           WRITE (fmt, '(A, I4, A)') 
      &    "('vX', ", YLABELS, "(10('-'), '='))"
-          WRITE (*, fmt, advance='no') 
+          WRITE (unit, fmt, advance='no') 
           i = COLUMNS-2-(YLABELS*YLABEL_COL_WIDTH)
           if (i .GT. 0) THEN
             WRITE (fmt, '(A, I4, A)') "(", i, "('-'))"
-            WRITE (*, fmt)
+            WRITE (unit, fmt)
           ELSE
-            WRITE (*, '("")')
+            WRITE (unit, '("")')
           END IF
 
 * X lines
 
-
 * Each line is a bound, x+dx*line -> x+dx*(line+1).
 * Search through X, plot points into p_density when in bounds, 
-* write line and move on when out.
+* write line and move on when out. 
+* Because X is sorted, 'i' can persist between lines.
           i = 1
           DO line = 0, xlines-1
             p_density = 1
@@ -311,10 +301,9 @@
 
 *   End of upper
             DO WHILE (i .LE. points_n .AND. points(X,i) .LT. bounds(2))
-*       Column position is just the amount of dy the origin Y (+1 cause FORTRAN):
+*       Column position is just the amount of dy from origin Y (+1 cause FORTRAN)
               col = INT((points(Y,i)-ranges(Y,1)) / dxy(Y))+1
               p_density(col) = p_density(col) + 1
-*              print *, "ROW", line, "COL", col, "VAL", points(X,i),"I",i
               i = i + 1
             END DO
 
@@ -325,73 +314,16 @@
             END DO
             IF (mod(line, XLABEL_LINE_SPACE) .EQ. 0) THEN
               WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
-              WRITE (*, fmt) bounds(1), g_line
+              WRITE (unit, fmt) bounds(1), g_line
             ELSE 
               WRITE (fmt, '(A, I4, A)') "(10X, '|=',", YCOLUMNS, "A)"
-              WRITE (*, fmt) g_line
+              WRITE (unit, fmt) g_line
             END IF
           END DO
-
-          
-
-* Store into p_density, for every col on line.
-* Render g_line symbols according to p_density.
-* Write graph line to screen.
-
-* Between this (x+dx*line) and (x*dx+line+1),
-* how many y are between (y+dy*col) and (y+dy*col+1)?
-
-* X is sorted, find subset bound between
-
-*            bounds(2) = [0, 0]
-*            i = 1
-*            DO WHILE (i.LE.points_n .AND. points(i).LT.xi+dxy(X)*line) 
-*              IF i .eq.
-*  
-*            
-*            xi = points(X,1)
-*  
-*            IF points(X,i) .GE.
-*  
-*            p_density = 0 
-*            DO line = 0, xlines-1
-*  * Find bounds of X values inside this line
-*              
-*              DO i = 1, n_points
-*                IF points(X, i) .GE. 
-*  
-*            g_line = 'x'
-* X lines 
-*          WRITE (fmt, '(A, I4, A)') "(F10.4, '|=', ", YCOLUMNS, "A)"
-*
-*          DO i = 1, xlines
-*            WRITE (*, fmt) 10.0, g_line
-*          END DO
-
-
         END SUBROUTINE
-*
       END MODULE
 
       PROGRAM main
-* const MAX_POINTS, Y_COL_LENGTH, X_ROW_RANGE
-* const X=1,Y=2
-*
-* CALL iopener (iunit, ounit, quitter)
-*  icheck (filename)
-*  ocheck (filename)
-*  INQUIRE (filename)
-* IF (quitter) stop or smthn
-* CALL ireader (iunit, points, points_n, quitter)
-*  - read x + y into points in two rows. Make pairs contiguous for sorting.
-*  - handle mismatch point count, abort if unrecoverable (0 or -).
-* 
-* IF (quitter) stop or smthn (could do loop w/ case)
-* ranges(2:2) = ([minval(points(i,:)), 
-*                 maxval(points(i,:))], i = X, Y)
-* 
-* WRITE 
-*
         USE fileprompts
         USE pointstuff
         USE grapher
@@ -400,55 +332,41 @@
         INTEGER :: ps_n
         REAL, DIMENSION(POINT_SIZE, MAX_POINTS), TARGET :: ps
         
-        INTEGER :: u1, u2
-        INTEGER :: p
+        INTEGER :: iunit, ounit
         LOGICAL :: bust
 
-        INTEGER :: plotlines
-        REAL :: y_step, x_step
-
-        CALL ifileorbust (u1, bust)
-        CALL read_points (u1, ps, ps_n, bust)
-        CLOSE (u1)
-        DO p = 1, ps_n 
-          WRITE (*, *) ps(:,p)
-        END DO
+        CALL ifileorbust (iunit, bust)
         
-        CALL sort_points (ps, ps_n, 1)
+        IF (.NOT. bust) THEN
+          CALL ofileorbust (ounit, bust)
 
-        print *, ""
+          IF (.NOT. bust) THEN
+            CALL read_points (iunit, ps, ps_n, bust)
+            CLOSE (iunit)
 
-*        CALL sort_points (ps, ps_n, X)
-        DO p = 1, ps_n 
-          WRITE (*, *) ps(:,p)
-        END DO
-        
-        print *, ""
+            IF (.NOT. bust) THEN
+              WRITE (ounit, '(A)') "DATA POINTS"
+              CALL write_points (ounit, ps, ps_n)
 
-        CALL graph_set_points (ps, ps_n)
-        CALL graph_write_info (1)
-        CALL graph_write_plot (1)
+              CALL sort_points (ps, ps_n, 1)
+              
+              WRITE (ounit, '(A)') "SORTED DATA"
+              CALL write_points (ounit, ps, ps_n) 
         
-        
-*        IF (.NOT. bust) THEN
-*          CALL ofileorbust (u2, bust)
-*
-*          IF (.NOT. bust) THEN
-*            CALL read_points (u1, points, points_n, bust)
-*            CLOSE (u1)
-*
-*            IF (.NOT. bust) THEN
-*              WRITE (*, '(A)') "DATA POINTS"
-*              CALL write_points (u2, points, points_n)
-*              WRITE (*, '(A)') "SORTED DATA"
-*              CALL sort_points (points, points_n)
-*              CALL write_points (u2, points, points_n) 
-*
-*              CALL graph_points (u2, points, points_n)
-*              CLOSE (u2)
-*            END IF
-*          END IF
-*        END IF
+              CALL graph_set_points (ps, ps_n)
+              
+              WRITE (ounit, '("")')
+              CALL graph_write_info (ounit)
+              WRITE (ounit, '("")')
+
+              CALL graph_write_plot (ounit)
+
+              WRITE (*, '(A)') "Graph written to file."
+
+              CLOSE (ounit)
+            END IF
+          END IF
+        END IF
        
         WRITE (*, '(A)') "Goodbye!"
       END PROGRAM

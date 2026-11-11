@@ -55,7 +55,7 @@
          
             WRITE (*, *) "The reduced system: "   
             CALL write_system (sys)
-            WRITE (*, *) "The solution vector: "
+            WRITE (*, *) "The (supposed) solution vector: "
             DO i = 1, sys%size
               WRITE (*, '(A, ": ")', advance='no') abc(i)
               CALL write_imaginary(sys%equations(i, sys%size+1))

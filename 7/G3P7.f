@@ -135,11 +135,10 @@
       CONTAINS
 
 * Set head = tail = NULL
-      SUBROUTINE list_initialize (list) 
+      TYPE (list_t) FUNCTION make_list() 
         IMPLICIT NONE
-        TYPE (list_t), INTENT(OUT) :: list
-        NULLIFY (list%head, list%tail)
-      END SUBROUTINE
+        NULLIFY (make_list%head, make_list%tail)
+      END FUNCTION
 
 * Create and add a node from item
       SUBROUTINE list_append_item (list, item)
@@ -173,8 +172,33 @@
           list%tail%nxt => node
           list%tail => node
         END IF
-
       END SUBROUTINE
+
+* DO NOT call this like "node = walk (node, 2, over)"
+* Auto deref will kill you. Use '=>'. 
+      FUNCTION walk (from, steps, overstep)
+        IMPLICIT NONE
+        TYPE (node_t), POINTER, INTENT(IN) :: from
+        INTEGER, INTENT(IN) :: steps
+        TYPE (node_t), POINTER :: walk
+        INTEGER, INTENT(OUT) :: overstep
+
+*   Don't be stupid and pass in null.
+        walk => from
+        overstep = steps
+
+        DO WHILE (overstep .GT. 0 .AND. associated(walk%nxt)) 
+          walk => walk%nxt
+          overstep = overstep - 1
+          print *, "step"
+        END DO
+
+        DO WHILE (overstep .LT. 0 .AND. associated(walk%prv)) 
+          walk => walk%prv
+          overstep = overstep + 1
+          print *, "step", walk%item%name
+        END DO
+      END FUNCTION
 
 * Remove an existing node
       SUBROUTINE list_remove (list, node)
@@ -196,7 +220,7 @@
           node%nxt%prv => node%prv
         END IF
 
-*   Free mem and nullify the last pointer.
+*   Free the thing.
         DEALLOCATE (node)
         NULLIFY (node)
       END SUBROUTINE
@@ -205,21 +229,16 @@
       SUBROUTINE list_annihilate (list)
         IMPLICIT NONE
         TYPE (list_t), INTENT(INOUT) :: list
-        TYPE (node_t), POINTER :: oldhead, oldtail
-        CHARACTER :: test
+        TYPE (node_t), POINTER :: oldhead
       
-*        DO WHILE (associated(list%head) .AND. 
-*     &            associated(list%tail%prv))
-*          oldhead => list%head
-*          oldtail => list%tail
         DO WHILE (associated(list%head))
           oldhead => list%head
           list%head => oldhead%nxt
           DEALLOCATE(oldhead)
           CALL list_print (list)
-*          WRITE (*, *) "Poop"
-*          READ (*, *) test
         END DO
+
+        NULLIFY (list%head, list%tail)
       END SUBROUTINE
 
 * Print it
@@ -227,14 +246,31 @@
         IMPLICIT NONE
         TYPE (list_t), INTENT(IN) :: list
         TYPE (node_t), POINTER :: node
+        INTEGER :: i
 
-        PRINT *, "PRINTOUT"
+        PRINT *, "--------------------"
+        PRINT *, "HED: ",list%head%item%name,"TAL: ",list%tail%item%name
+
         node => list%head
+        i = 0
         DO WHILE (associated(node))
-          WRITE (*, *) node%item%name, node%item%count
+          PRINT *, " NODE: ", i, TRIM(node%item%name)
+          IF (associated(node%nxt)) THEN
+            WRITE (*, '(A,A)', advance='no')
+     &  " nxt: ", TRIM(node%nxt%item%name)
+          ELSE
+            WRITE (*, '(A)', advance='no') " nxt: null"
+          END IF
+          IF (associated(node%prv)) THEN
+            WRITE (*, '(A,A)', advance='no')
+     &  " prv: ", TRIM(node%prv%item%name)
+          ELSE
+            WRITE (*, '(A)', advance='no') " prv: null"
+          END IF
+          PRINT *, ''
           node => node%nxt
         END DO
-        PRINT *, "PRINTDONE"
+        PRINT *, "--------------------"
       END SUBROUTINE
 
       END MODULE
@@ -249,18 +285,31 @@
         INTEGER, PARAMETER :: MAX_RECORDS=25
 
         TYPE (list_t) :: list
-        INTEGER :: iunit, ounit, WAIT
+        INTEGER :: iunit, ounit, WAIT, i
         LOGICAL :: bust
 
-        CALL list_initialize (list)
+        TYPE (node_t), POINTER :: at
+
+        list = make_list()
         
         CALL ifileorbust (iunit, bust)
-        CALL list_print (list)
         CALL populate (list, iunit)
         CLOSE (iunit)
         
+        at => list%head
+        
         CALL list_print (list)
-        READ (*, *) WAIT
+        WAIT = 0
+        DO WHILE (WAIT .NE. 69)
+          WRITE (*, *) "athead", associated(at, list%head), 
+     & "attail", associated(at, list%tail), "name", at%item%name
+          WRITE (*, *) "step to"
+          READ (*, *) WAIT
+          PRINT *, WAIT
+          at => walk(at, WAIT, i)
+          WRITE (*, *) "overstep", i
+        CALL list_print (list)
+        END DO
         CALL list_annihilate (list)
 
         READ (*, *) WAIT
@@ -279,9 +328,7 @@
         READ (unit, '(A)', iostat=ios) record%name
         READ (unit, '(I32)', iostat=ios) record%count
         DO WHILE (ios .EQ. 0)
-*          PRINT *, record%name, record%count
           CALL list_append_item (list, record)
-          CALL list_print (list)
           READ (unit, '(A)', iostat=ios) record%name
           READ (unit, '(I32)', iostat=ios) record%count
         END DO

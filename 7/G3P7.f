@@ -128,6 +128,7 @@
         
       CONTAINS
 
+* Allocate + initialize a node, return pointer to it.
       FUNCTION make_node (item)
         IMPLICIT NONE
         TYPE (node_t), POINTER :: make_node
@@ -149,7 +150,7 @@
         IF (associated(n2)) n2%prv => n1
       END SUBROUTINE
 
-* ! Both insert_nxt & insert_prv will split lists if inserting a null.
+* Add a node before / after another node, stitching together prv / nxt pointers.
       SUBROUTINE node_insert_nxt (node, nxt) 
         IMPLICIT NONE
         TYPE (node_t), POINTER, INTENT(INOUT) :: node, nxt
@@ -157,6 +158,7 @@
         CALL node_link(node, nxt)
       END SUBROUTINE 
 
+* ! Both insert_nxt & insert_prv will split lists if inserting a null.
       SUBROUTINE node_insert_prv (node, prv) 
         IMPLICIT NONE
         TYPE (node_t), POINTER, INTENT(INOUT) :: node, prv
@@ -225,8 +227,9 @@
         IMPLICIT NONE
         TYPE (list_t), INTENT(INOUT) :: list
         TYPE (node_t), POINTER, INTENT(INOUT) :: node
-        CALL node_link (list%tail, node)
+*   Empty list edge case.
         IF (.NOT. associated(list%head)) list%head => node
+        CALL node_link (list%tail, node)
         list%tail => node
       END SUBROUTINE
 
@@ -275,7 +278,6 @@
 
         prvname = '!!!!'
         nxtname = '!!!!'
-
         IF (associated(list%head)) 
      &    WRITE (prvname,'(A)') list%head%item%name
         IF (associated(list%tail)) 
@@ -306,15 +308,15 @@
       PROGRAM main
         USE fileprompts
         USE lists
-        use nodes
+        USE nodes
         IMPLICIT NONE
         INTEGER, PARAMETER :: MAX_RECORDS=25
 
         TYPE (list_t) :: list
-        INTEGER :: iunit, ounit, WAIT, i
+        INTEGER :: iunit, ounit
         LOGICAL :: bust
 
-        TYPE (node_t), POINTER :: at, nxt, killer, victim, this, that
+* Todo limit to MAX_RECORDS and check for zero records in input.
 
         CALL init_list (list)
         CALL list_print(list)
@@ -326,8 +328,6 @@
         CALL list_print(list)
         CALL blamegame(list)
         CALL list_print(list)
-        
-*        at => list%head
         
         PRINT *, "Goodbye!"
 
@@ -356,21 +356,25 @@
         IMPLICIT NONE
         TYPE (list_t), INTENT(INOUT) :: list
         TYPE (node_t), POINTER :: blamed, blamer 
-
+        
         blamer => list%head
         blamed => list_node_at(list, blamer, blamer%item%count)
-        WRITE (*, '(A,A,A,A,I2,A)') 
-     &  trim(blamer%item%name), " accuses ", trim(blamed%item%name),
-     &  ", and has ", blamer%item%count, " reasons why."
+        WRITE (*, '(A," has ",I2," grievences, and accuses ",A)')
+     &  trim(blamer%item%name),blamer%item%count,trim(blamed%item%name)
+
         DO WHILE (.NOT. associated(list%head, list%tail))
           blamer => list_excise_node(list, blamed)
           blamed => list_node_at(list, blamer, blamer%item%count)
-          WRITE (*, '(A,A,A,A,I2,A)') 
-     &    trim(blamer%item%name), " blames ", trim(blamed%item%name),
-     &    ", citing ", blamer%item%count, " excuses."
+        WRITE (*, '(A," has ",I2," excuses, and blames ",A)')
+     &  trim(blamer%item%name),blamer%item%count,trim(blamed%item%name)
           CALL release_node (blamer)
-*          CALL list_print(list)
         END DO
+
+        blamer => list_excise_node(list, blamed)
+        WRITE (*,
+     &  '(A," has ",I2," excuses, but there is no one left to blame.")')
+     &  trim(blamer%item%name), blamer%item%count
+        CALL release_node (blamer)
       END SUBROUTINE
 
 

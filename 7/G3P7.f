@@ -132,9 +132,9 @@
         IMPLICIT NONE
         TYPE (node_t), POINTER :: make_node
         TYPE (item_t), INTENT(IN) :: item
-        INTEGER :: memstat
+        INTEGER :: st
 
-        ALLOCATE (make_node, stat=memstat)
+        ALLOCATE (make_node, stat=st)
         IF (st .NE. 0) STOP "! Failed to allocate a node, stopping."
 
         NULLIFY (make_node%nxt, make_node%prv)
@@ -145,23 +145,23 @@
       SUBROUTINE node_link (n1, n2)
         IMPLICIT NONE
         TYPE (node_t), POINTER, INTENT(INOUT) :: n1, n2
-        IF (allocated(n1)) n1%nxt => n2
-        IF (allocated(n2)) n2%prv => n1
+        IF (associated(n1)) n1%nxt => n2
+        IF (associated(n2)) n2%prv => n1
       END SUBROUTINE
 
-* Both insert_nxt & insert_prv will split lists if inserting a null!
+* ! Both insert_nxt & insert_prv will split lists if inserting a null.
       SUBROUTINE node_insert_nxt (node, nxt) 
         IMPLICIT NONE
         TYPE (node_t), POINTER, INTENT(INOUT) :: node, nxt
-        node_link(nxt, node%nxt)
-        node_link(node, nxt)
+        CALL node_link(nxt, node%nxt)
+        CALL node_link(node, nxt)
       END SUBROUTINE 
 
       SUBROUTINE node_insert_prv (node, prv) 
         IMPLICIT NONE
         TYPE (node_t), POINTER, INTENT(INOUT) :: node, prv
-        node_link(node%prv, prv)
-        node_link(prv, node)
+        CALL node_link(node%prv, prv)
+        CALL node_link(prv, node)
       END SUBROUTINE 
 
 * Returns reference to the node at 'steps' steps away from origin node. 
@@ -174,11 +174,11 @@
 
 *   Don't be stupid and pass a null. Not handling that.
         node_at => origin
-        DO WHILE (steps .GT. 0 .AND. associated(walk%nxt)) 
+        DO WHILE (steps .GT. 0 .AND. associated(node_at%nxt)) 
           node_at => node_at%nxt
           steps = steps - 1
         END DO
-        DO WHILE (steps .LT. 0 .AND. associated(walk%prv)) 
+        DO WHILE (steps .LT. 0 .AND. associated(node_at%prv)) 
           node_at => node_at%prv
           steps = steps + 1
         END DO
@@ -189,8 +189,10 @@
         IMPLICIT NONE
         TYPE (node_t), POINTER :: excise_node
         TYPE (node_t), POINTER, INTENT(INOUT) :: node
-        node_link(node%prv, node%nxt)
+        print *, associated (node)
+        CALL node_link(node%prv, node%nxt)
         excise_node => node
+        print *, associated (node)
       END FUNCTION
 
 * Free from memory.
@@ -224,7 +226,9 @@
       SUBROUTINE list_append (list, node) 
         IMPLICIT NONE
         TYPE (list_t), INTENT(INOUT) :: list
+        TYPE (node_t), POINTER, INTENT(INOUT) :: node
         CALL node_link (list%tail, node)
+        IF (.NOT. associated(list%head)) list%head => node
         list%tail => node
       END SUBROUTINE
 
@@ -232,18 +236,25 @@
       FUNCTION list_node_at (list, origin, steps)
         IMPLICIT NONE
         TYPE (node_t), POINTER :: list_node_at
-        TYPE (list_t). INTENT (IN) :: list
+        TYPE (list_t), INTENT(IN) :: list
         TYPE (node_t), POINTER, INTENT(IN) :: origin
         INTEGER, INTENT(IN) :: steps
         INTEGER :: i
 
+        print *, associated(origin), 
+     &  associated(origin%nxt), associated(origin%prv)
+
+
         i = steps
+        print *, i, associated(list%head), associated(list%tail)
         list_node_at => node_at(origin, i)
         DO WHILE (i .GT. 0)
-          list_node_at => node_at(list%head, i-1)
+          i = i - 1
+          list_node_at => node_at(list%head, i)
         END DO
         DO WHILE (i .LT. 0)
-          list_node_at => node_at(list%tail, i-1)
+          i = i + 1
+          list_node_at => node_at(list%tail, i)
         END DO
       END FUNCTION
 
@@ -253,19 +264,18 @@
         TYPE (node_t), POINTER :: list_excise_node
         TYPE (list_t), INTENT(INOUT) :: list
         TYPE (node_t), POINTER, INTENT(INOUT) :: node
-        list_excise_node => excise_node(list, node)
+        list_excise_node => excise_node(node)
         IF (associated(list_excise_node, list%head)) 
      &    list%head => list%head%nxt
         IF (associated(list_excise_node, list%tail)) 
-     &    list%tail => list%head%prv
-      END FUNCTION
+     &    list%tail => list%tail%prv
 
-      END MODULE
+      END FUNCTION
 
       SUBROUTINE blamegame (list)
         IMPLICIT NONE
         TYPE (list_t), INTENT(INOUT) :: list
-        TYPE (node_t), POINTER, INTENT(IN) :: blamed, blamer 
+        TYPE (node_t), POINTER :: blamed, blamer 
 
 C  *   Head stays first time around, special case.
 C          blamer => list%head
@@ -287,12 +297,21 @@ C          END DO
 
 *   'Who did it? It was him!'
         blamer => list%head
-        blamed => list_node_at(list, blamer, blamer%count)
+        blamed => list_node_at(list, blamer, blamer%item%count)
+        PRINT *, 
+     &  trim(blamer%item%name), " accuses ", trim(blamed%item%name)
         DO WHILE (.NOT. associated(list%head, list%tail))
+*          PRINT *, "!", associated(list%tail), associated(list%head)
 *   'No! I'm innocent! It was him!'
           blamer => list_excise_node(list, blamed)
-          blamed => list_node_at(list, blamer, blamer%count)
+          print *, "!!", associated(blamer), associated(blamed)
+          blamed => list_node_at(list, blamer, blamer%item%count)
+          print *, "!!", associated(blamer), associated(blamed)
+        PRINT *, 
+     &  trim(blamer%item%name), " blames ", trim(blamed%item%name)
           CALL release_node (blamer)
+          CALL list_print(list)
+          print *, "!!", associated(blamer), associated(blamed)
         END DO
       END SUBROUTINE
 
@@ -433,47 +452,49 @@ C                 walk_around => walk(list%tail, overstep+1, overstep)
 C               END DO
 C             END FUNCTION
 C       
-C       * Print it
-C             SUBROUTINE list_print (list) 
-C               IMPLICIT NONE
-C               TYPE (list_t), INTENT(IN) :: list
-C               TYPE (node_t), POINTER :: node
-C               INTEGER :: i
-C       
-C               PRINT *, "===================="
-C               PRINT *, "HED: ",list%head%item%name,"TAL: ",list%tail%item%name
-C               PRINT *, "--------------------"
-C       
-C               i = 0
-C               node => list%head
-C               DO WHILE (associated(node))
-C                 PRINT *, " NODE: ", i, TRIM(node%item%name), node%item%count
-C                 IF (associated(node%nxt)) THEN
-C                   WRITE (*,'(A,A)', advance='no')
-C            &  " nxt: ", TRIM(node%nxt%item%name)
-C                 ELSE
-C                   WRITE (*,'(A)', advance='no') " nxt: null"
-C                 END IF
-C                 IF (associated(node%prv)) THEN
-C                   WRITE (*,'(A,A)', advance='no')
-C            &  " prv: ", TRIM(node%prv%item%name)
-C                 ELSE
-C                   WRITE (*,'(A)', advance='no') " prv: null"
-C                 END IF
-C                 PRINT *, ''
-C                 node => node%nxt
-C               END DO
-C               PRINT *, "===================="
-C             END SUBROUTINE
-C       
-C             END MODULE
+* Print it
+      SUBROUTINE list_print (list) 
+        IMPLICIT NONE
+        TYPE (list_t), INTENT(IN) :: list
+        TYPE (node_t), POINTER :: node
+        INTEGER :: i
+
+        PRINT *, "===================="
+        PRINT *, "HED: ",list%head%item%name,"TAL: ",list%tail%item%name
+        PRINT *, "--------------------"
+
+        i = 0
+        node => list%head
+        DO WHILE (associated(node))
+          PRINT *, " NODE: ", i, TRIM(node%item%name), node%item%count
+          IF (associated(node%nxt)) THEN
+            WRITE (*,'(A,A)', advance='no')
+     &  " nxt: ", TRIM(node%nxt%item%name)
+          ELSE
+            WRITE (*,'(A)', advance='no') " nxt: null"
+          END IF
+          IF (associated(node%prv)) THEN
+            WRITE (*,'(A,A)', advance='no')
+     &  " prv: ", TRIM(node%prv%item%name)
+          ELSE
+            WRITE (*,'(A)', advance='no') " prv: null"
+          END IF
+          PRINT *, ''
+          node => node%nxt
+        END DO
+        PRINT *, "===================="
+      END SUBROUTINE
+
+      END MODULE
 
 * Read records into list
 * Do the thing
 * Print survivor
       PROGRAM main
         USE fileprompts
-        USE linkedlists
+*        USE linkedlists
+        USE lists
+        use nodes
         IMPLICIT NONE
         INTEGER, PARAMETER :: MAX_RECORDS=25
 
@@ -483,10 +504,15 @@ C             END MODULE
 
         TYPE (node_t), POINTER :: at, nxt, killer, victim, this, that
 
-        list = make_list()
+        CALL init_list (list)
+*        CALL list_print(list)
         
         CALL ifileorbust (iunit, bust)
         CALL populate (list, iunit)
+        CALL list_print(list)
+        CALL blamegame(list)
+
+
         CLOSE (iunit)
         
         at => list%head
@@ -523,12 +549,12 @@ C             END MODULE
 
 *          print *, trim(at2%item%name), at2%item%count
 
-        CALL list_print (list)
-        CALL blamegame (list)
-        CALL list_print (list)
-        CALL list_annihilate (list)
-
-        READ (*, *) WAIT
+*        CALL list_print (list)
+*        CALL blamegame (list)
+*        CALL list_print (list)
+*        CALL list_annihilate (list)
+*
+*        READ (*, *) WAIT
         PRINT *, "Goodbye!"
 
       CONTAINS
@@ -538,58 +564,60 @@ C             END MODULE
         IMPLICIT NONE
         INTEGER, INTENT(IN) :: unit
         TYPE (list_t), INTENT(INOUT) :: list
+        TYPE (node_t), POINTER :: node
         TYPE (item_t) :: record
         INTEGER :: ios
 
         READ (unit, '(A)', iostat=ios) record%name
         READ (unit, '(I32)', iostat=ios) record%count
         DO WHILE (ios .EQ. 0)
-          CALL list_append_item (list, record)
+          node => make_node(record)
+          CALL list_append (list, node)
           READ (unit, '(A)', iostat=ios) record%name
           READ (unit, '(I32)', iostat=ios) record%count
         END DO
       END SUBROUTINE
 
-      SUBROUTINE blamegame (list)
-        TYPE (list_t), INTENT(INOUT) :: list
-        TYPE (node_t), POINTER :: blamed, blamer
-        INTEGER :: excuses
-
-        blamer => list%head
-        excuses = blamer%item%count
-        blamed => walk_around(list, blamer, excuses)
-        WRITE (*, *) "It was ", blamed%item%name
-        
-        blamer => blamed
-        WRITE (*, *) blamer%item%name, "I didn't do it!"
-        blamed => walk_around(list, blamed, sign(1,excuses))
-        excuses = excuses - 1
-        CALL list_delete_node (list, blamer)
-        blamed => walk_around(list, blamed, sign(1,excuses))
-        blamed = walk_around (list, 
-        excuses = blamer%item%count
-        WRITE (*, *) blamer%item%name, " did nothing wrong"
-        blamed => walk_around(list, blamed, sign(1,excuses))
-        excuses = excuses - 1
-        CALL list_remove (list, blamer)
-        blamed => walk_around(list, blamer, excuses)
-        WRITE (*, *) blamed%item%name, " was at fault"
-        
-        blamed
-*        blamer => list%head
-                
-        DO WHILE (.NOT. associated(list%head, list%tail))
-          WRITE (*, *) blamer%item%name, " did nothing wrong"
-          blamed => walk_around(list, blamer, excuses)
-          WRITE (*, *) blamed%item%name, " was at fault"
-          excuses = blamed%item%count
-          blamer => walk_around(list, blamed, sign(1,excuses))
-          CALL list_delete_node (list, blamed)
-        END DO
-      END SUBROUTINE
-
-
-
+C          SUBROUTINE blamegame (list)
+C            TYPE (list_t), INTENT(INOUT) :: list
+C            TYPE (node_t), POINTER :: blamed, blamer
+C            INTEGER :: excuses
+C    
+C            blamer => list%head
+C            excuses = blamer%item%count
+C            blamed => walk_around(list, blamer, excuses)
+C            WRITE (*, *) "It was ", blamed%item%name
+C            
+C            blamer => blamed
+C            WRITE (*, *) blamer%item%name, "I didn't do it!"
+C            blamed => walk_around(list, blamed, sign(1,excuses))
+C            excuses = excuses - 1
+C            CALL list_delete_node (list, blamer)
+C            blamed => walk_around(list, blamed, sign(1,excuses))
+C            blamed = walk_around (list, 
+C            excuses = blamer%item%count
+C            WRITE (*, *) blamer%item%name, " did nothing wrong"
+C            blamed => walk_around(list, blamed, sign(1,excuses))
+C            excuses = excuses - 1
+C            CALL list_remove (list, blamer)
+C            blamed => walk_around(list, blamer, excuses)
+C            WRITE (*, *) blamed%item%name, " was at fault"
+C            
+C            blamed
+C    *        blamer => list%head
+C                    
+C            DO WHILE (.NOT. associated(list%head, list%tail))
+C              WRITE (*, *) blamer%item%name, " did nothing wrong"
+C              blamed => walk_around(list, blamer, excuses)
+C              WRITE (*, *) blamed%item%name, " was at fault"
+C              excuses = blamed%item%count
+C              blamer => walk_around(list, blamed, sign(1,excuses))
+C              CALL list_delete_node (list, blamed)
+C            END DO
+C          END SUBROUTINE
+C    
+C    
+C    
       END PROGRAM
 
 

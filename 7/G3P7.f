@@ -142,29 +142,25 @@
         make_node%item = item
       END FUNCTION
 
-* Link n1 <-> n2, handling nulls.
+* Given [n1, n2, n3, ...], link n1 <-> n2 <-> n3 <-> ...
+* Handles [n1, NULL, n3] like n1 -> NULL and NULL <- n3 (no link).
+*      SUBROUTINE node_link (nodes)
+*        IMPLICIT NONE
+*        TYPE (node_t), POINTER, INTENT(INOUT) :: nodes(:)      <- illegal :(
+*        INTEGER :: i
+*        DO i = 2, size(nodes)
+*          IF (associated(nodes(i-1))) nodes(i-1)%nxt => nodes(i)
+*          IF (associated(nodes(i))) nodes(1)%prv => nodes(i-1)
+*        END DO
+*      END SUBROUTINE
+
+* Link two nodes, only two nodes, together. Considers both NULL cases.
       SUBROUTINE node_link (n1, n2)
         IMPLICIT NONE
         TYPE (node_t), POINTER, INTENT(INOUT) :: n1, n2
         IF (associated(n1)) n1%nxt => n2
         IF (associated(n2)) n2%prv => n1
       END SUBROUTINE
-
-* Add a node before / after another node, stitching together prv / nxt pointers.
-      SUBROUTINE node_insert_nxt (node, nxt) 
-        IMPLICIT NONE
-        TYPE (node_t), POINTER, INTENT(INOUT) :: node, nxt
-        CALL node_link(nxt, node%nxt)
-        CALL node_link(node, nxt)
-      END SUBROUTINE 
-
-* ! Both insert_nxt & insert_prv will split lists if inserting a null.
-      SUBROUTINE node_insert_prv (node, prv) 
-        IMPLICIT NONE
-        TYPE (node_t), POINTER, INTENT(INOUT) :: node, prv
-        CALL node_link(node%prv, prv)
-        CALL node_link(prv, node)
-      END SUBROUTINE 
 
 * Returns reference to the node at 'steps' steps away from origin node. 
 * Any overflow (NULL reached before steps == 0) is returned in 'steps' itself.
@@ -184,15 +180,6 @@
           node_at => node_at%prv
           steps = steps + 1
         END DO
-      END FUNCTION
-
-* Link a node's prv and nxt without changing internal prv / nxt. Returns node.
-      FUNCTION excise_node (node)
-        IMPLICIT NONE
-        TYPE (node_t), POINTER :: excise_node
-        TYPE (node_t), POINTER, INTENT(INOUT) :: node
-        CALL node_link(node%prv, node%nxt)
-        excise_node => node
       END FUNCTION
 
 * Free from memory.
@@ -255,45 +242,51 @@
       END FUNCTION
 
 * Same as node function + head/tail tracking.
-      FUNCTION list_excise_node (list, node)
+      FUNCTION list_mask_node (list, node)
         IMPLICIT NONE
-        TYPE (node_t), POINTER :: list_excise_node
+        TYPE (node_t), POINTER :: list_mask_node
         TYPE (list_t), INTENT(INOUT) :: list
         TYPE (node_t), POINTER, INTENT(INOUT) :: node
-        list_excise_node => excise_node(node)
-        IF (associated(list_excise_node, list%head)) 
-     &    list%head => list%head%nxt
-        IF (associated(list_excise_node, list%tail)) 
-     &    list%tail => list%tail%prv
-
+*        list_excise_node => excise_node(node)
+        IF (associated(node, list%head)) list%head => list%head%nxt
+        IF (associated(node, list%tail)) list%tail => list%tail%prv
+*        CALL node_link ([node%prv, node%nxt])
+        CALL node_link (node%prv, node%nxt)
+        list_mask_node => node
       END FUNCTION
 
 * Print it
-      SUBROUTINE list_print (list) 
+      SUBROUTINE list_print (list, unit) 
         IMPLICIT NONE
+        CHARACTER(len=*), PARAMETER :: 
+     &  TEXT1='("===", "HEAD:", A, "===", "TAIL:", A, "===")',
+     &  TEXT2='(I2, "|", "NAME:", A8, "|", "COUNT:",
+     &         I2, "|", "PREV:", A8, "|", "NEXT:", A8, "|")'
+        INTEGER, INTENT(IN) :: unit
         TYPE (list_t), INTENT(IN) :: list
         TYPE (node_t), POINTER :: n
         CHARACTER(len=48) prvname, nxtname
         INTEGER :: i
 
-        prvname = '!!!!'
-        nxtname = '!!!!'
+        prvname = '~~~~'
+        nxtname = '~~~~'
         IF (associated(list%head)) 
      &    WRITE (prvname,'(A)') list%head%item%name
         IF (associated(list%tail)) 
      &    WRITE (nxtname,'(A)') list%tail%item%name
-        WRITE (*,'("===", "HEAD:", A, "===", "TAIL:", A, "===")')
-     &    trim(prvname),trim(nxtname)
+        WRITE (*, TEXT1) trim(prvname),trim(nxtname)
+        WRITE (unit,TEXT1) trim(prvname),trim(nxtname)
 
         i = 1
         n => list%head
         DO WHILE (associated(n))
-          prvname = '!!!!'
-          nxtname = '!!!!'
+          prvname = '~~~~'
+          nxtname = '~~~~'
           IF (associated(n%prv)) WRITE (prvname,'(A)') n%prv%item%name
           IF (associated(n%nxt)) WRITE (nxtname,'(A)') n%nxt%item%name
-          WRITE (*,'(I2, "|", "NAME:", A8, "|", "COUNT:",
-     &               I2, "|", "PREV:", A8, "|", "NEXT:", A8, "|")')
+          WRITE (*, TEXT2)
+     &    i,trim(n%item%name),n%item%count,trim(prvname),trim(nxtname)
+          WRITE (unit, TEXT2)
      &    i,trim(n%item%name),n%item%count,trim(prvname),trim(nxtname)
           n => n%nxt
           i = i + 1
@@ -310,73 +303,95 @@
         USE lists
         USE nodes
         IMPLICIT NONE
-        INTEGER, PARAMETER :: MAX_RECORDS=25
 
         TYPE (list_t) :: list
         INTEGER :: iunit, ounit
         LOGICAL :: bust
 
-* Todo limit to MAX_RECORDS and check for zero records in input.
-
         CALL init_list (list)
-        CALL list_print(list)
         
         CALL ifileorbust (iunit, bust)
-        CALL populate (list, iunit)
-        CLOSE (iunit)
+        IF (.NOT. bust) THEN
+          CALL populate (list, iunit)
+          CLOSE (iunit)
+          CALL ofileorbust (ounit, bust)
+          IF (.NOT. bust) THEN
+            CALL blamegame(list, ounit)
+            CLOSE (ounit)
+          END IF
+        END IF
         
-        CALL list_print(list)
-        CALL blamegame(list)
-        CALL list_print(list)
-        
-        PRINT *, "Goodbye!"
+        WRITE (*, *) "Goodbye!"
 
       CONTAINS
 
 * Read records into (end of) list from unit.
       SUBROUTINE populate (list, unit)
         IMPLICIT NONE
+        INTEGER, PARAMETER :: MAX_RECORDS=25
         INTEGER, INTENT(IN) :: unit
         TYPE (list_t), INTENT(INOUT) :: list
         TYPE (node_t), POINTER :: node
         TYPE (item_t) :: record
-        INTEGER :: ios
+        INTEGER :: ios, i
 
-        READ (unit, '(A)', iostat=ios) record%name
-        READ (unit, '(I32)', iostat=ios) record%count
-        DO WHILE (ios .EQ. 0)
-          node => make_node(record)
-          CALL list_append (list, node)
-          READ (unit, '(A)', iostat=ios) record%name
-          READ (unit, '(I32)', iostat=ios) record%count
+        READ (unit, *, iostat=ios) record%name, record%count
+
+        i = 0
+        DO WHILE (ios .EQ. 0 .AND. i .LT. MAX_RECORDS)
+          IF (record%count .NE. 0) THEN
+            node => make_node(record)
+            CALL list_append (list, node)
+            i = i + 1
+            print *, i
+          ELSE 
+            WRITE (*, '("! Record counts cannot be 0, skipping ", A)')
+     &      record%name
+          END IF
+          READ (unit, *, iostat=ios) record%name, record%count
         END DO
+        IF (i .GE. MAX_RECORDS .AND. ios .EQ. 0) WRITE (*, *) 
+     &  "Max records (25) was reached, some records have been skipped."
       END SUBROUTINE
       
-      SUBROUTINE blamegame (list)
+      SUBROUTINE blamegame (list, unit)
         IMPLICIT NONE
+        CHARACTER(len=*), PARAMETER :: 
+     &  TEXT1='(/,A10," has ",I2," grievences, and accuses ",A,/)',
+     &  TEXT2='(/,A10," has ",I2," excuses, and blames ",A,/)',
+     &  TEXT3='(/,A10," has ",I2," excuses. ",A10," is all alone.",/)'
+        INTEGER, INTENT(IN) :: unit
         TYPE (list_t), INTENT(INOUT) :: list
         TYPE (node_t), POINTER :: blamed, blamer 
         
+        CALL list_print (list, unit)
         blamer => list%head
         blamed => list_node_at(list, blamer, blamer%item%count)
-        WRITE (*, '(A," has ",I2," grievences, and accuses ",A)')
-     &  trim(blamer%item%name),blamer%item%count,trim(blamed%item%name)
+        WRITE (*, TEXT1)
+     &  trim(blamer%item%name), blamer%item%count, blamed%item%name
+        WRITE (unit, TEXT1)
+     &  trim(blamer%item%name), blamer%item%count, blamed%item%name
+        CALL list_print (list, unit)
 
         DO WHILE (.NOT. associated(list%head, list%tail))
-          blamer => list_excise_node(list, blamed)
+          blamer => list_mask_node(list, blamed)
           blamed => list_node_at(list, blamer, blamer%item%count)
-        WRITE (*, '(A," has ",I2," excuses, and blames ",A)')
-     &  trim(blamer%item%name),blamer%item%count,trim(blamed%item%name)
+          WRITE (*, TEXT2)
+     &    trim(blamer%item%name), blamer%item%count, blamed%item%name
+          WRITE (unit, TEXT2)
+     &    trim(blamer%item%name), blamer%item%count, blamed%item%name
+          CALL list_print (list, unit)
           CALL release_node (blamer)
         END DO
 
-        blamer => list_excise_node(list, blamed)
-        WRITE (*,
-     &  '(A," has ",I2," excuses, but there is no one left to blame.")')
-     &  trim(blamer%item%name), blamer%item%count
+        blamer => list_mask_node (list, blamed)
+        WRITE (*, TEXT3)
+     &  trim(blamer%item%name),blamer%item%count,trim(blamer%item%name)
+        WRITE (unit, TEXT3)
+     &  trim(blamer%item%name),blamer%item%count,trim(blamer%item%name)
+        CALL list_print (list, unit)
         CALL release_node (blamer)
       END SUBROUTINE
-
 
       END PROGRAM
 
